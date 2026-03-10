@@ -1,0 +1,103 @@
+import { describe, expect, it } from "vitest";
+import * as urls from "../../src/client/urls.js";
+
+describe("URL builders", () => {
+  it("uses correct API base", () => {
+    expect(urls.API_BASE).toBe("https://api.robinhood.com");
+    expect(urls.NUMMUS_BASE).toBe("https://nummus.robinhood.com");
+  });
+
+  describe("Auth URLs", () => {
+    it("oauthToken", () =>
+      expect(urls.oauthToken()).toBe("https://api.robinhood.com/oauth2/token/"));
+    it("oauthRevoke", () =>
+      expect(urls.oauthRevoke()).toBe("https://api.robinhood.com/oauth2/revoke_token/"));
+    it("challenge", () =>
+      expect(urls.challenge("abc")).toBe("https://api.robinhood.com/challenge/abc/respond/"));
+    it("pathfinderUserMachine", () =>
+      expect(urls.pathfinderUserMachine()).toBe(
+        "https://api.robinhood.com/pathfinder/user_machine/",
+      ));
+    it("pathfinderInquiry", () =>
+      expect(urls.pathfinderInquiry("m1")).toBe(
+        "https://api.robinhood.com/pathfinder/inquiries/m1/user_view/",
+      ));
+  });
+
+  describe("Account URLs", () => {
+    it("accounts", () => expect(urls.accounts()).toBe("https://api.robinhood.com/accounts/"));
+    it("account", () =>
+      expect(urls.account("123")).toBe("https://api.robinhood.com/accounts/123/"));
+    it("portfolios", () => expect(urls.portfolios()).toBe("https://api.robinhood.com/portfolios/"));
+    it("portfolio", () =>
+      expect(urls.portfolio("123")).toBe("https://api.robinhood.com/portfolios/123/"));
+    it("portfolioHistoricals", () =>
+      expect(urls.portfolioHistoricals("123")).toBe(
+        "https://api.robinhood.com/portfolios/historicals/123/",
+      ));
+  });
+
+  describe("Stock URLs", () => {
+    it("quotes", () => expect(urls.quotes()).toBe("https://api.robinhood.com/quotes/"));
+    it("quote uppercases", () =>
+      expect(urls.quote("aapl")).toBe("https://api.robinhood.com/quotes/AAPL/"));
+    it("instruments", () =>
+      expect(urls.instruments()).toBe("https://api.robinhood.com/instruments/"));
+    it("fundamentals", () =>
+      expect(urls.fundamentals()).toBe("https://api.robinhood.com/fundamentals/"));
+    it("stockHistoricals", () =>
+      expect(urls.stockHistoricals()).toBe("https://api.robinhood.com/quotes/historicals/"));
+    it("news uppercases", () =>
+      expect(urls.news("aapl")).toBe("https://api.robinhood.com/midlands/news/AAPL/"));
+    it("ratings", () =>
+      expect(urls.ratings("MSFT")).toBe("https://api.robinhood.com/midlands/ratings/MSFT/"));
+  });
+
+  describe("Option URLs", () => {
+    it("optionChains", () =>
+      expect(urls.optionChains()).toBe("https://api.robinhood.com/options/chains/"));
+    it("optionInstruments", () =>
+      expect(urls.optionInstruments()).toBe("https://api.robinhood.com/options/instruments/"));
+    it("optionMarketData", () =>
+      expect(urls.optionMarketData("opt1")).toBe(
+        "https://api.robinhood.com/marketdata/options/opt1/",
+      ));
+    it("optionOrders", () =>
+      expect(urls.optionOrders()).toBe("https://api.robinhood.com/options/orders/"));
+  });
+
+  describe("Crypto URLs", () => {
+    it("cryptoQuote uses pair ID", () =>
+      expect(urls.cryptoQuote("3d961844-d360-45fc-989b-f6fca761d511")).toBe(
+        "https://api.robinhood.com/marketdata/forex/quotes/3d961844-d360-45fc-989b-f6fca761d511/",
+      ));
+    it("cryptoHoldings", () =>
+      expect(urls.cryptoHoldings()).toBe("https://nummus.robinhood.com/holdings/"));
+    it("cryptoOrders", () =>
+      expect(urls.cryptoOrders()).toBe("https://nummus.robinhood.com/orders/"));
+  });
+
+  describe("Order URLs", () => {
+    it("stockOrders", () => expect(urls.stockOrders()).toBe("https://api.robinhood.com/orders/"));
+    it("cancelStockOrder", () =>
+      expect(urls.cancelStockOrder("o1")).toBe("https://api.robinhood.com/orders/o1/cancel/"));
+    it("cancelOptionOrder", () =>
+      expect(urls.cancelOptionOrder("o2")).toBe(
+        "https://api.robinhood.com/options/orders/o2/cancel/",
+      ));
+    it("cancelCryptoOrder", () =>
+      expect(urls.cancelCryptoOrder("o3")).toBe("https://nummus.robinhood.com/orders/o3/cancel/"));
+  });
+
+  describe("Market URLs", () => {
+    it("markets", () => expect(urls.markets()).toBe("https://api.robinhood.com/markets/"));
+    it("marketHours", () =>
+      expect(urls.marketHours("XNYS", "2025-01-15")).toBe(
+        "https://api.robinhood.com/markets/XNYS/hours/2025-01-15/",
+      ));
+    it("topMoversSp500", () =>
+      expect(urls.topMoversSp500()).toBe("https://api.robinhood.com/midlands/movers/sp500/"));
+    it("top100", () =>
+      expect(urls.top100()).toBe("https://api.robinhood.com/midlands/tags/tag/100-most-popular/"));
+  });
+});

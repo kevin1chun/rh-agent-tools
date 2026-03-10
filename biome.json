@@ -34,7 +34,7 @@
     }
   },
   "files": {
-    "includes": ["packages/**/*.ts"]
+    "includes": ["src/**/*.ts", "bin/**/*.ts", "__tests__/**/*.ts"]
   },
   "assist": {
     "actions": {

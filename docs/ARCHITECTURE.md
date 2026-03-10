@@ -19,8 +19,8 @@
 │          │  .getPositions()           │                         │
 │          ▼                            ▼                         │
 │   ┌───────────────────────────────────────────┐                 │
-│   │      packages/client/src/                 │                 │
-│   │      @investwithtaji/client               │                 │
+│   │      src/client/                          │                 │
+│   │      rh-for-agents                        │                 │
 │   │  ┌─────────────────────────────────────┐  │                 │
 │   │  │  session: RobinhoodSession (fetch)  │  │                 │
 │   │  │  loggedIn: boolean                  │  │                 │
@@ -37,7 +37,7 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Bun workspace monorepo.** `packages/client/` is a standalone API client. `packages/server/` is the MCP server that wraps it.
+**Single-package design.** `src/client/` is the standalone API client. `src/server/` is the MCP server that wraps it.
 
 ## Tech Stack
 
@@ -56,19 +56,19 @@
 ## File Map
 
 ```
-packages/client/src/          <- @investwithtaji/client
-├── index.ts                  <- Exports: RobinhoodClient, getClient(), login()
-├── client.ts                 <- RobinhoodClient class (~50 async methods)
-├── auth.ts                   <- Session restore + token refresh
-├── token-store.ts            <- AES-256-GCM encrypted JSON + OS keychain key
-├── session.ts                <- fetch wrapper (headers, timeouts, auth)
-├── http.ts                   <- GET/POST/DELETE with pagination + error mapping
-├── urls.ts                   <- Pure URL builders (api.robinhood.com, nummus.robinhood.com)
-├── errors.ts                 <- Exception hierarchy
-├── types.ts                  <- Zod schemas + inferred types
-└── branded.ts                <- AccountNumber, OrderId, etc. branded types
+src/client/                    <- rh-for-agents client library
+├── index.ts                   <- Exports: RobinhoodClient, getClient(), login()
+├── client.ts                  <- RobinhoodClient class (~50 async methods)
+├── auth.ts                    <- Session restore + token refresh
+├── token-store.ts             <- AES-256-GCM encrypted JSON + OS keychain key
+├── session.ts                 <- fetch wrapper (headers, timeouts, auth)
+├── http.ts                    <- GET/POST/DELETE with pagination + error mapping
+├── urls.ts                    <- Pure URL builders (api.robinhood.com, nummus.robinhood.com)
+├── errors.ts                  <- Exception hierarchy
+├── types.ts                   <- Zod schemas + inferred types
+└── branded.ts                 <- AccountNumber, OrderId, etc. branded types
 
-packages/server/src/           <- rh-for-agents MCP server
+src/server/                    <- rh-for-agents MCP server
 ├── index.ts                   <- main() export, StdioServerTransport
 ├── server.ts                  <- McpServer creation + tool registration
 ├── browser-auth.ts            <- Playwright browser login capture

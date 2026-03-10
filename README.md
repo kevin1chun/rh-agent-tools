@@ -4,11 +4,10 @@
 [![npm version](https://img.shields.io/npm/v/rh-for-agents)](https://www.npmjs.com/package/rh-for-agents)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Robinhood for AI agents — TypeScript monorepo with a standalone API client and MCP server.
+Robinhood for AI agents — an MCP server with 18 structured tools and a standalone TypeScript client, in a single package.
 
-Two packages:
-- **`@investwithtaji/client`** — Standalone Robinhood API client (~50 async methods)
-- **`rh-for-agents`** — MCP server with 18 structured tools for any MCP-compatible AI agent
+- **18 MCP tools** for any MCP-compatible AI agent
+- **Standalone API client** (~50 async methods) for programmatic use
 
 Compatible with **Claude Code**, **Codex**, **OpenClaw**, and any MCP-compatible agent.
 
@@ -43,7 +42,7 @@ rh-for-agents onboard --agent openclaw
 git clone https://github.com/kevin1chun/rh-for-agents.git
 cd rh-for-agents
 bun install
-bun packages/server/bin/rh-for-agents.ts onboard
+bun bin/rh-for-agents.ts onboard
 ```
 
 ### Manual setup
@@ -53,7 +52,7 @@ bun packages/server/bin/rh-for-agents.ts onboard
 
 ```bash
 # Register MCP server (global — available in all projects)
-claude mcp add -s user rh-for-agents -- bun run /path/to/packages/server/bin/rh-for-agents.ts
+claude mcp add -s user rh-for-agents -- bun run /path/to/bin/rh-for-agents.ts
 
 # Install skills (per-project, optional)
 cd your-project
@@ -67,7 +66,7 @@ Restart Claude Code to pick up the changes. Claude Code supports 5 trading skill
 <summary>Codex</summary>
 
 ```bash
-codex mcp add rh-for-agents -- bun run /path/to/packages/server/bin/rh-for-agents.ts
+codex mcp add rh-for-agents -- bun run /path/to/bin/rh-for-agents.ts
 ```
 
 Restart Codex to pick up the changes. Codex uses all 18 MCP tools directly.
@@ -94,7 +93,7 @@ Add to your MCP client's config (e.g. `~/Library/Application Support/Claude/clau
   "mcpServers": {
     "rh-for-agents": {
       "command": "bun",
-      "args": ["run", "/absolute/path/to/rh-for-agents/packages/server/bin/rh-for-agents.ts"]
+      "args": ["run", "/absolute/path/to/rh-for-agents/bin/rh-for-agents.ts"]
     }
   }
 }
@@ -142,7 +141,7 @@ Skills provide guided workflows on top of MCP tools. Supported by **Claude Code*
 | `robinhood-trade` | "buy 10 AAPL", "sell my position" |
 | `robinhood-options` | "show AAPL options", "find calls" |
 
-Each skill includes a `client-api.md` reference for advanced users who want their agent to generate TypeScript scripts using `@investwithtaji/client`.
+Each skill includes a `client-api.md` reference for advanced users who want their agent to generate TypeScript scripts using `rh-for-agents`.
 
 ## Agent Compatibility
 
@@ -156,7 +155,7 @@ Each skill includes a `client-api.md` reference for advanced users who want thei
 ## Client Library (standalone)
 
 ```typescript
-import { RobinhoodClient } from "@investwithtaji/client";
+import { RobinhoodClient } from "rh-for-agents";
 
 const client = new RobinhoodClient();
 await client.restoreSession();

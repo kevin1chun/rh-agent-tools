@@ -1,11 +1,12 @@
 # rh-for-agents
 
-AI-native Robinhood trading interface — TypeScript monorepo with a standalone API client and MCP server.
+AI-native Robinhood trading interface — single npm package with MCP server + TypeScript client.
 
 ## Project Structure
-- `packages/client/` — `@investwithtaji/client`: Standalone Robinhood API client
-- `packages/server/` — `rh-for-agents`: MCP server with 18 tools
-- `.claude/skills/` — Claude Code skills for interactive use (SKILL.md only, no scripts)
+- `src/client/` — Robinhood API client (~50 async methods)
+- `src/server/` — MCP server with 18 tools
+- `bin/` — CLI entry point (`rh-for-agents`)
+- `skills/` — Claude Code skills for interactive use
 - `docs/` — Architecture, access controls, use cases, contributing
 
 ## Tech Stack
@@ -20,20 +21,20 @@ AI-native Robinhood trading interface — TypeScript monorepo with a standalone 
 ## Running the MCP Server
 ```bash
 bun install
-bun packages/server/bin/rh-for-agents.ts
+bun bin/rh-for-agents.ts
 ```
 
 ## Development
 ```bash
-bun run typecheck   # tsc --noEmit on both packages
+bun run typecheck   # tsc --noEmit
 bun run check       # biome lint + format
 npx vitest run      # all tests (use vitest, NOT bun test)
 ```
 
 ## Skills
-Canonical skill source is `packages/server/skills/`. Local `.claude/skills/` contains symlinks for development.
+Canonical skill source is `skills/`. Local `.claude/skills/` contains symlinks for development.
 
-Install MCP server + skills: `bun packages/server/bin/rh-for-agents.ts install`
+Install MCP server + skills: `bun bin/rh-for-agents.ts install`
 
 Skills use three-layer progressive disclosure:
 1. **SKILL.md** — MCP tool orchestration (default)
@@ -49,7 +50,7 @@ Available skills:
 
 ## Client Patterns
 ```typescript
-import { RobinhoodClient, getClient } from "@investwithtaji/client";
+import { RobinhoodClient, getClient } from "rh-for-agents";
 
 // Class-based
 const client = new RobinhoodClient();
