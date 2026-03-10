@@ -1,6 +1,6 @@
 {
   "name": "@rh-agent-tools/client",
-  "version": "0.3.0",
+  "version": "0.1.0",
   "type": "module",
   "description": "TypeScript Robinhood API client for AI-native trading interfaces",
   "license": "MIT",
@@ -36,5 +36,9 @@
   },
   "optionalDependencies": {
     "keytar": "^7.9.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

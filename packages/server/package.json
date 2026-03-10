@@ -1,6 +1,6 @@
 {
   "name": "rh-agent-tools",
-  "version": "0.3.0",
+  "version": "0.1.0",
   "type": "module",
   "description": "MCP server for AI-native Robinhood trading — 18 structured tools for any MCP-compatible AI agent",
   "license": "MIT",
@@ -41,5 +41,9 @@
     "@rh-agent-tools/client": "workspace:*",
     "playwright-core": "^1.50.0",
     "zod": "^3.24.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

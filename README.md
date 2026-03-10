@@ -1,6 +1,7 @@
 # rh-agent-tools
 
 [![CI](https://github.com/kevin1chun/rh-agent-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/kevin1chun/rh-agent-tools/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/rh-agent-tools)](https://www.npmjs.com/package/rh-agent-tools)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 AI-native Robinhood trading interface — TypeScript monorepo with a standalone API client and MCP server.
