@@ -59,7 +59,7 @@ Present options data as a table:
 - Strike | Type | Bid | Ask | Last | Delta | IV | Volume | OI | Prob Profit
 
 ## Programmatic Access
-For TypeScript scripts using `@rh-for-agents/client`, see [client-api.md](client-api.md).
+For TypeScript scripts using `@investwithtaji/rh-client`, see [client-api.md](client-api.md).
 
 ## MCP Tools Used
 | Tool | Purpose |

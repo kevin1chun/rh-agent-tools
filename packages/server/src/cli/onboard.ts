@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import * as p from "@clack/prompts";
-import { loadTokens } from "@rh-for-agents/client";
+import { loadTokens } from "@investwithtaji/rh-client";
 import { claudeCode } from "./agents/claude-code.js";
 import { codex } from "./agents/codex.js";
 import { openclaw } from "./agents/openclaw.js";

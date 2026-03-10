@@ -3,8 +3,8 @@
 AI-native Robinhood trading interface — TypeScript monorepo with a standalone API client and MCP server.
 
 ## Project Structure
-- `packages/client/` — `@rh-for-agents/client`: Standalone Robinhood API client
-- `packages/server/` — `rh-for-agents`: MCP server with 18 tools
+- `packages/client/` — `@investwithtaji/rh-client`: Standalone Robinhood API client
+- `packages/server/` — `@investwithtaji/rh-server`: MCP server with 18 tools
 - `.claude/skills/` — Claude Code skills for interactive use (SKILL.md only, no scripts)
 - `docs/` — Architecture, access controls, use cases, contributing
 
@@ -49,7 +49,7 @@ Available skills:
 
 ## Client Patterns
 ```typescript
-import { RobinhoodClient, getClient } from "@rh-for-agents/client";
+import { RobinhoodClient, getClient } from "@investwithtaji/rh-client";
 
 // Class-based
 const client = new RobinhoodClient();

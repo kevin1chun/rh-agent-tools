@@ -1,14 +1,14 @@
 # rh-for-agents
 
 [![CI](https://github.com/kevin1chun/rh-for-agents/actions/workflows/ci.yml/badge.svg)](https://github.com/kevin1chun/rh-for-agents/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/rh-for-agents)](https://www.npmjs.com/package/rh-for-agents)
+[![npm version](https://img.shields.io/npm/v/@investwithtaji/rh-server)](https://www.npmjs.com/package/@investwithtaji/rh-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Robinhood for AI agents — TypeScript monorepo with a standalone API client and MCP server.
 
 Two packages:
-- **`@rh-for-agents/client`** — Standalone Robinhood API client (~50 async methods)
-- **`rh-for-agents`** — MCP server with 18 structured tools for any MCP-compatible AI agent
+- **`@investwithtaji/rh-client`** — Standalone Robinhood API client (~50 async methods)
+- **`@investwithtaji/rh-server`** — MCP server with 18 structured tools for any MCP-compatible AI agent
 
 Compatible with **Claude Code**, **Codex**, **OpenClaw**, and any MCP-compatible agent.
 
@@ -142,7 +142,7 @@ Skills provide guided workflows on top of MCP tools. Supported by **Claude Code*
 | `robinhood-trade` | "buy 10 AAPL", "sell my position" |
 | `robinhood-options` | "show AAPL options", "find calls" |
 
-Each skill includes a `client-api.md` reference for advanced users who want their agent to generate TypeScript scripts using `@rh-for-agents/client`.
+Each skill includes a `client-api.md` reference for advanced users who want their agent to generate TypeScript scripts using `@investwithtaji/rh-client`.
 
 ## Agent Compatibility
 
@@ -156,7 +156,7 @@ Each skill includes a `client-api.md` reference for advanced users who want thei
 ## Client Library (standalone)
 
 ```typescript
-import { RobinhoodClient } from "@rh-for-agents/client";
+import { RobinhoodClient } from "@investwithtaji/rh-client";
 
 const client = new RobinhoodClient();
 await client.restoreSession();

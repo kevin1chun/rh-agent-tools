@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **MCP Server** with 18 structured tools for any MCP-compatible AI agent
-- **Standalone client library** (`@rh-for-agents/client`) with ~50 async methods
+- **Standalone client library** (`@investwithtaji/rh-client`) with ~50 async methods
 - **5 Claude Code skills**: setup, portfolio, research, trade, options
 - Browser-based authentication via Playwright (Chrome)
 - AES-256-GCM encrypted session storage with OS keychain key management

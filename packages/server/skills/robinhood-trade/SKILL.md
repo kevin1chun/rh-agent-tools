@@ -89,7 +89,7 @@ After placing an order, use `rh-for-agents:robinhood_get_order_status` with the 
 - Bank unlinking
 
 ## Programmatic Access
-For TypeScript scripts using `@rh-for-agents/client`, see [client-api.md](client-api.md).
+For TypeScript scripts using `@investwithtaji/rh-client`, see [client-api.md](client-api.md).
 
 ## MCP Tools Used
 | Tool | Purpose |

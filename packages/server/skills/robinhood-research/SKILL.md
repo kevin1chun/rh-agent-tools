@@ -42,7 +42,7 @@ Call these MCP tools in parallel:
 7. **Price Trend**: Summary of recent price action from historicals
 
 ## Programmatic Access
-For TypeScript scripts using `@rh-for-agents/client`, see [client-api.md](client-api.md).
+For TypeScript scripts using `@investwithtaji/rh-client`, see [client-api.md](client-api.md).
 
 ## MCP Tools Used
 | Tool | Purpose |

@@ -1,4 +1,4 @@
-# @rh-for-agents/client
+# @investwithtaji/rh-client
 
 TypeScript Robinhood API client for AI-native trading interfaces.
 
@@ -9,13 +9,13 @@ TypeScript Robinhood API client for AI-native trading interfaces.
 ## Installation
 
 ```bash
-bun add @rh-for-agents/client
+bun add @investwithtaji/rh-client
 ```
 
 ## Usage
 
 ```typescript
-import { RobinhoodClient } from "@rh-for-agents/client";
+import { RobinhoodClient } from "@investwithtaji/rh-client";
 
 const client = new RobinhoodClient();
 await client.restoreSession(); // restores cached session or throws
@@ -28,7 +28,7 @@ const portfolio = await client.getPortfolioProfile();
 ### Singleton
 
 ```typescript
-import { getClient } from "@rh-for-agents/client";
+import { getClient } from "@investwithtaji/rh-client";
 
 const rh = getClient(); // returns shared instance
 await rh.restoreSession();
@@ -46,7 +46,7 @@ import {
   APIError,
   NotFoundError,
   RateLimitError,
-} from "@rh-for-agents/client";
+} from "@investwithtaji/rh-client";
 
 try {
   await client.getQuotes(["AAPL"]);

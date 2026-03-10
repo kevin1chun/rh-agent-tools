@@ -44,7 +44,7 @@ Present results as a formatted table showing:
 **`summary`**: `equity`, `market_value`, `cash`, `buying_power`, `crypto_buying_power`, `cash_available_for_withdrawal`
 
 ## Programmatic Access
-For TypeScript scripts using `@rh-for-agents/client`, see [client-api.md](client-api.md).
+For TypeScript scripts using `@investwithtaji/rh-client`, see [client-api.md](client-api.md).
 
 ## MCP Tools Used
 | Tool | Purpose |

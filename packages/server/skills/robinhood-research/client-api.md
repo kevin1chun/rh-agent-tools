@@ -1,11 +1,11 @@
 # Research — Client API
 
-TypeScript methods from `@rh-for-agents/client` for programmatic stock research.
+TypeScript methods from `@investwithtaji/rh-client` for programmatic stock research.
 
 ## Quick Start
 
 ```typescript
-import { RobinhoodClient } from "@rh-for-agents/client";
+import { RobinhoodClient } from "@investwithtaji/rh-client";
 
 const client = new RobinhoodClient();
 await client.restoreSession();

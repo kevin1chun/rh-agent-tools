@@ -1,5 +1,5 @@
 {
-  "name": "@rh-for-agents/client",
+  "name": "@investwithtaji/rh-client",
   "version": "0.1.0",
   "type": "module",
   "description": "TypeScript Robinhood API client for AI-native trading interfaces",

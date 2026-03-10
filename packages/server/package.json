@@ -1,5 +1,5 @@
 {
-  "name": "rh-for-agents",
+  "name": "@investwithtaji/rh-server",
   "version": "0.1.0",
   "type": "module",
   "description": "MCP server for AI-native Robinhood trading — 18 structured tools for any MCP-compatible AI agent",
@@ -38,7 +38,7 @@
   "dependencies": {
     "@clack/prompts": "^1.1.0",
     "@modelcontextprotocol/sdk": "^1.12.0",
-    "@rh-for-agents/client": "workspace:*",
+    "@investwithtaji/rh-client": "workspace:*",
     "playwright-core": "^1.50.0",
     "zod": "^4.3.6"
   },
