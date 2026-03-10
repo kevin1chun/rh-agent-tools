@@ -1,6 +1,6 @@
 /** Shared helpers for MCP tool handlers. */
 
-import { getClient } from "@rh-agent-tools/client";
+import { getClient } from "@rh-for-agents/client";
 
 export function text(data: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(data) }] };

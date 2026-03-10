@@ -1,7 +1,7 @@
 /**
  * Encrypted token storage using AES-256-GCM with OS keychain key management.
  *
- * Tokens are stored as encrypted JSON at ~/.rh-agent-tools/session.enc.
+ * Tokens are stored as encrypted JSON at ~/.rh-for-agents/session.enc.
  * The encryption key is stored in the OS keychain via keytar,
  * so it never touches the filesystem.
  *
@@ -15,9 +15,9 @@ import { chmod } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const TOKEN_DIR = join(homedir(), ".rh-agent-tools");
+const TOKEN_DIR = join(homedir(), ".rh-for-agents");
 const TOKEN_FILE = join(TOKEN_DIR, "session.enc");
-const KEYRING_SERVICE = "rh-agent-tools";
+const KEYRING_SERVICE = "rh-for-agents";
 const KEYRING_USERNAME = "encryption-key";
 
 const ALGORITHM = "aes-256-gcm";
@@ -91,7 +91,7 @@ export async function saveTokens(tokens: Omit<TokenData, "saved_at">): Promise<s
     writeFileSync(TOKEN_FILE, encrypt(payload, key));
   } else {
     // Fallback: plaintext JSON
-    console.warn("[rh-agent-tools] keytar unavailable — saving tokens as plaintext JSON");
+    console.warn("[rh-for-agents] keytar unavailable — saving tokens as plaintext JSON");
     writeFileSync(TOKEN_FILE, payload);
   }
 

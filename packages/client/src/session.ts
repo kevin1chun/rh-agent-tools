@@ -6,7 +6,7 @@ export const DEFAULT_HEADERS: Record<string, string> = {
   "Accept-Language": "en-US,en;q=1",
   "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
   "X-Robinhood-API-Version": "1.431.4",
-  "User-Agent": "rh-agent-tools/0.3.0",
+  "User-Agent": "rh-for-agents/0.1.0",
 };
 
 const DEFAULT_TIMEOUT_MS = 16_000;

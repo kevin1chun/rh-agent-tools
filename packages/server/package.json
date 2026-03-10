@@ -1,17 +1,17 @@
 {
-  "name": "rh-agent-tools",
-  "version": "0.3.0",
+  "name": "rh-for-agents",
+  "version": "0.1.0",
   "type": "module",
   "description": "MCP server for AI-native Robinhood trading — 18 structured tools for any MCP-compatible AI agent",
   "license": "MIT",
   "author": "Kevin Chun",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kevin1chun/rh-agent-tools.git",
+    "url": "https://github.com/kevin1chun/rh-for-agents.git",
     "directory": "packages/server"
   },
-  "homepage": "https://github.com/kevin1chun/rh-agent-tools#readme",
-  "bugs": "https://github.com/kevin1chun/rh-agent-tools/issues",
+  "homepage": "https://github.com/kevin1chun/rh-for-agents#readme",
+  "bugs": "https://github.com/kevin1chun/rh-for-agents/issues",
   "keywords": [
     "robinhood",
     "mcp",
@@ -26,7 +26,7 @@
     "bun": ">=1.0.0"
   },
   "bin": {
-    "rh-agent-tools": "./bin/rh-agent-tools.ts"
+    "rh-for-agents": "./bin/rh-for-agents.ts"
   },
   "exports": {
     ".": {
@@ -38,8 +38,12 @@
   "dependencies": {
     "@clack/prompts": "^1.1.0",
     "@modelcontextprotocol/sdk": "^1.12.0",
-    "@rh-agent-tools/client": "workspace:*",
+    "@rh-for-agents/client": "workspace:*",
     "playwright-core": "^1.50.0",
-    "zod": "^3.24.0"
+    "zod": "^4.3.6"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

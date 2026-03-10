@@ -12,14 +12,14 @@ describe("installMcp", () => {
     installMcp();
 
     // First call: remove existing
-    expect(execSyncMock).toHaveBeenCalledWith("claude mcp remove rh-agent-tools", {
+    expect(execSyncMock).toHaveBeenCalledWith("claude mcp remove rh-for-agents", {
       stdio: "pipe",
     });
 
     // Second call: add new
     const addCall = execSyncMock.mock.calls[1] as unknown[];
     expect(addCall[0]).toMatch(
-      /^claude mcp add -s user rh-agent-tools -- bun run .+rh-agent-tools\.ts$/,
+      /^claude mcp add -s user rh-for-agents -- bun run .+rh-for-agents\.ts$/,
     );
     expect(addCall[1]).toEqual({ stdio: "pipe" });
   });
@@ -50,7 +50,7 @@ describe("installMcp", () => {
     installMcp();
 
     const addCall = execSyncMock.mock.calls[1] as unknown[];
-    const expectedBinPath = resolve(import.meta.dirname, "../bin/rh-agent-tools.ts");
+    const expectedBinPath = resolve(import.meta.dirname, "../bin/rh-for-agents.ts");
     expect(addCall[0]).toContain(expectedBinPath);
   });
 });

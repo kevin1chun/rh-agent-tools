@@ -6,7 +6,7 @@ export interface AgentMeta {
   description: string;
   cli: string;
   supportsSkills: boolean;
-  installMcp: (binPath: string) => void;
+  installMcp?: (binPath: string) => void;
   installSkills?: (skillsSource: string) => void;
   postInstallHint: string;
 }
@@ -24,7 +24,7 @@ export const AGENTS: ReadonlyArray<{
   {
     value: "openclaw",
     label: "OpenClaw",
-    hint: "Open-source personal AI assistant (via mcporter)",
+    hint: "Open-source personal AI assistant",
   },
   {
     value: "codex",

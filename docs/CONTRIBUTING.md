@@ -81,14 +81,14 @@ vi.mock("../src/http.js", async (importOriginal) => {
 
 ## Git Workflow
 
-1. Fork the repo and create a branch from `master`
+1. Fork the repo and create a branch from `main`
 2. Branch naming: `feat/description`, `fix/description`, or `docs/description`
 3. Make your changes and ensure all checks pass locally:
    ```bash
    bun run check && bun run typecheck && npx vitest run
    ```
 4. Write clear commit messages: `feat: add new tool`, `fix: handle null margin`, `docs: update README`
-5. Open a pull request against `master`
+5. Open a pull request against `main`
 6. Fill out the PR template (safety checklist + testing)
 
 ## Safety Checklist

@@ -1,7 +1,7 @@
 ---
 name: robinhood-research
 description: Research and analyze stocks using Robinhood data. Use when user asks to research, analyze, or get info about a specific stock.
-allowed-tools: mcp__rh-agent-tools__*
+allowed-tools: mcp__rh-for-agents__*
 ---
 
 # robinhood-research
@@ -21,9 +21,9 @@ Research and analyze stocks using Robinhood data.
 ### Step 1: Fetch Data
 Call these MCP tools in parallel:
 
-1. **`rh-agent-tools:robinhood_get_stock_quote`** with `symbols: "AAPL"` — returns quote + fundamentals
-2. **`rh-agent-tools:robinhood_get_news`** with `symbol: "AAPL"` — returns news, analyst ratings, and earnings
-3. **`rh-agent-tools:robinhood_get_historicals`** with `symbols: "AAPL", interval: "day", span: "year"` — OHLCV price history
+1. **`rh-for-agents:robinhood_get_stock_quote`** with `symbols: "AAPL"` — returns quote + fundamentals
+2. **`rh-for-agents:robinhood_get_news`** with `symbol: "AAPL"` — returns news, analyst ratings, and earnings
+3. **`rh-for-agents:robinhood_get_historicals`** with `symbols: "AAPL", interval: "day", span: "year"` — OHLCV price history
 
 ### Key Data Fields
 - **Quote**: `last_trade_price`, `bid_price`, `ask_price`, `previous_close`, `pe_ratio`
@@ -42,12 +42,12 @@ Call these MCP tools in parallel:
 7. **Price Trend**: Summary of recent price action from historicals
 
 ## Programmatic Access
-For TypeScript scripts using `@rh-agent-tools/client`, see [client-api.md](client-api.md).
+For TypeScript scripts using `@rh-for-agents/client`, see [client-api.md](client-api.md).
 
 ## MCP Tools Used
 | Tool | Purpose |
 |------|---------|
-| `rh-agent-tools:robinhood_get_stock_quote` | Quote + fundamentals |
-| `rh-agent-tools:robinhood_get_news` | News, ratings, earnings |
-| `rh-agent-tools:robinhood_get_historicals` | OHLCV price history |
-| `rh-agent-tools:robinhood_search` | Find instruments by keyword |
+| `rh-for-agents:robinhood_get_stock_quote` | Quote + fundamentals |
+| `rh-for-agents:robinhood_get_news` | News, ratings, earnings |
+| `rh-for-agents:robinhood_get_historicals` | OHLCV price history |
+| `rh-for-agents:robinhood_search` | Find instruments by keyword |

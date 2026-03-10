@@ -6,7 +6,7 @@
  * token response and stores it via the encrypted token store.
  */
 
-import { getClient, saveTokens } from "@rh-agent-tools/client";
+import { getClient, saveTokens } from "@rh-for-agents/client";
 import type { Browser } from "playwright-core";
 import { chromium, type Request, type Response } from "playwright-core";
 

@@ -8,11 +8,14 @@
     "test": "vitest run",
     "test:watch": "vitest"
   },
+  "overrides": {
+    "zod": "^4.3.6"
+  },
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",
     "@types/bun": "latest",
     "msw": "^2.7.0",
     "typescript": "^5.8.0",
-    "vitest": "^3.0.0"
+    "vitest": "^4.0.18"
   }
 }

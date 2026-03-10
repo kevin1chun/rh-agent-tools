@@ -9,7 +9,7 @@ describe("RobinhoodSession", () => {
 
   it("DEFAULT_HEADERS has required fields", () => {
     expect(DEFAULT_HEADERS["X-Robinhood-API-Version"]).toBe("1.431.4");
-    expect(DEFAULT_HEADERS["User-Agent"]).toBe("rh-agent-tools/0.3.0");
+    expect(DEFAULT_HEADERS["User-Agent"]).toBe("rh-for-agents/0.1.0");
     expect(DEFAULT_HEADERS.Accept).toBe("*/*");
   });
 

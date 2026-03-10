@@ -27,7 +27,7 @@ if (args[0] === "onboard" || args[0] === "setup") {
   const mcpOnly = args.includes("--mcp");
   const both = !skillsOnly && !mcpOnly;
 
-  console.log("rh-agent-tools install\n");
+  console.log("rh-for-agents install\n");
 
   if (both || mcpOnly) {
     const { installMcp } = await import("../src/cli/install-mcp.js");
@@ -43,16 +43,16 @@ if (args[0] === "onboard" || args[0] === "setup") {
     console.log("\nRestart Claude Code to pick up the changes.");
   }
 } else if (args.includes("--help") || args.includes("-h")) {
-  console.log(`rh-agent-tools — AI-native Robinhood trading interface
+  console.log(`rh-for-agents — AI-native Robinhood trading interface
 
 Usage:
-  rh-agent-tools                  Start the MCP server (stdio transport)
-  rh-agent-tools onboard          Interactive setup TUI (all agents)
-  rh-agent-tools onboard --agent claude-code|openclaw|codex
-  rh-agent-tools install          Install MCP server config + skills (Claude Code)
-  rh-agent-tools install --mcp    Install MCP server config only
-  rh-agent-tools install --skills Install Claude Code skills only
-  rh-agent-tools --help           Show this help message`);
+  rh-for-agents                  Start the MCP server (stdio transport)
+  rh-for-agents onboard          Interactive setup TUI (all agents)
+  rh-for-agents onboard --agent claude-code|openclaw|codex
+  rh-for-agents install          Install MCP server config + skills (Claude Code)
+  rh-for-agents install --mcp    Install MCP server config only
+  rh-for-agents install --skills Install Claude Code skills only
+  rh-for-agents --help           Show this help message`);
 } else {
   const { main } = await import("../src/index.js");
   await main();

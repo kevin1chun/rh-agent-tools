@@ -1,4 +1,4 @@
-/** MCP server for rh-agent-tools. */
+/** MCP server for rh-for-agents. */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerAuthTools } from "./tools/auth.js";
@@ -11,8 +11,8 @@ import { registerStockTools } from "./tools/stocks.js";
 
 export function createServer(): McpServer {
   const server = new McpServer({
-    name: "rh-agent-tools",
-    version: "0.3.0",
+    name: "rh-for-agents",
+    version: "0.1.0",
   });
 
   registerAuthTools(server);

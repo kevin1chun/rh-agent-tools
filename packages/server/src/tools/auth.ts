@@ -25,7 +25,7 @@ export function registerAuthTools(server: McpServer): void {
     {},
     async () => {
       try {
-        const { AuthenticationError } = await import("@rh-agent-tools/client");
+        const { AuthenticationError } = await import("@rh-for-agents/client");
         const rh = getRh();
         try {
           const result = await rh.restoreSession();

@@ -64,4 +64,4 @@ These operations are **never exposed** through MCP tools or skills.
 ### General
 - Session tokens expire after ~24 hours
 - Browser-based login only — no credentials pass through the tool layer
-- Encrypted session at `~/.rh-agent-tools/session.enc` (AES-256-GCM, key in OS keychain)
+- Encrypted session at `~/.rh-for-agents/session.enc` (AES-256-GCM, key in OS keychain)

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RobinhoodClient } from "../src/client.js";
-import { NotLoggedInError } from "../src/errors.js";
+import { NotFoundError, NotLoggedInError } from "../src/errors.js";
 
 // Mock the HTTP helpers
 vi.mock("../src/http.js", async (importOriginal) => {
@@ -23,9 +23,10 @@ vi.mock("../src/auth.js", () => ({
 }));
 
 import type { Mock } from "vitest";
-import { requestGet } from "../src/http.js";
+import { requestGet, requestPost } from "../src/http.js";
 
 const mockRequestGet = requestGet as Mock;
+const mockRequestPost = requestPost as Mock;
 
 describe("RobinhoodClient", () => {
   let client: RobinhoodClient;
@@ -84,7 +85,6 @@ describe("RobinhoodClient", () => {
       expect(mockRequestGet).toHaveBeenCalledWith(
         expect.anything(),
         "https://api.robinhood.com/accounts/123/",
-        undefined,
       );
     });
 
@@ -266,6 +266,159 @@ describe("RobinhoodClient", () => {
 
       expect(holdings).toHaveProperty("AAPL");
       expect(holdings["AAPL"]?.dividend_rate).toBe("0.55");
+    });
+  });
+
+  describe("buildHoldings edge cases", () => {
+    beforeEach(async () => {
+      await client.restoreSession();
+    });
+
+    it("uses price 0 when quote not found for a symbol", async () => {
+      // getPositions
+      mockRequestGet.mockResolvedValueOnce([
+        {
+          instrument: "https://api.robinhood.com/instruments/abc/",
+          quantity: "5",
+          average_buy_price: "50.00",
+        },
+      ]);
+      // getInstrumentByUrl
+      mockRequestGet.mockResolvedValueOnce({
+        url: "https://api.robinhood.com/instruments/abc/",
+        id: "abc",
+        symbol: "XYZ",
+        name: "XYZ Corp",
+        simple_name: "XYZ",
+        type: "stock",
+      });
+      // getQuotes returns empty (no match for XYZ)
+      mockRequestGet.mockResolvedValueOnce([]);
+
+      const holdings = await client.buildHoldings();
+
+      expect(holdings).toHaveProperty("XYZ");
+      expect(holdings["XYZ"]?.price).toBe("0");
+      expect(holdings["XYZ"]?.equity).toBe("0");
+    });
+  });
+
+  describe("orderStock validation", () => {
+    beforeEach(async () => {
+      await client.restoreSession();
+    });
+
+    it("throws NotFoundError when instrument not found", async () => {
+      // findInstruments returns empty
+      mockRequestGet.mockResolvedValueOnce([]);
+
+      await expect(client.orderStock("INVALID", "buy", 1)).rejects.toThrow(NotFoundError);
+    });
+
+    it("throws when trailAmount combined with limitPrice", async () => {
+      await expect(
+        client.orderStock("AAPL", "buy", 1, {
+          trailAmount: 5,
+          limitPrice: 150,
+        }),
+      ).rejects.toThrow("Cannot combine trailAmount with limitPrice or stopPrice");
+    });
+
+    it("throws when trailAmount combined with stopPrice", async () => {
+      await expect(
+        client.orderStock("AAPL", "buy", 1, {
+          trailAmount: 5,
+          stopPrice: 140,
+        }),
+      ).rejects.toThrow("Cannot combine trailAmount with limitPrice or stopPrice");
+    });
+
+    it("uses account URL from getAccounts when accountNumber not provided", async () => {
+      // findInstruments
+      mockRequestGet.mockResolvedValueOnce([
+        {
+          url: "https://api.robinhood.com/instruments/abc/",
+          id: "abc",
+          symbol: "AAPL",
+          name: "Apple Inc",
+          type: "stock",
+        },
+      ]);
+      // getAccounts
+      mockRequestGet.mockResolvedValueOnce([
+        { url: "https://api.robinhood.com/accounts/123/", account_number: "123" },
+      ]);
+      // POST order
+      mockRequestPost.mockResolvedValueOnce({ id: "order1", state: "queued" });
+
+      await client.orderStock("AAPL", "buy", 1);
+
+      expect(mockRequestPost).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.any(String),
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            account: "https://api.robinhood.com/accounts/123/",
+          }),
+        }),
+      );
+    });
+
+    it("uses account URL from accountNumber param when provided", async () => {
+      // findInstruments
+      mockRequestGet.mockResolvedValueOnce([
+        {
+          url: "https://api.robinhood.com/instruments/abc/",
+          id: "abc",
+          symbol: "AAPL",
+          name: "Apple Inc",
+          type: "stock",
+        },
+      ]);
+      // POST order
+      mockRequestPost.mockResolvedValueOnce({ id: "order1", state: "queued" });
+
+      await client.orderStock("AAPL", "buy", 1, { accountNumber: "456" });
+
+      expect(mockRequestPost).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.any(String),
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            account: "https://api.robinhood.com/accounts/456/",
+          }),
+        }),
+      );
+    });
+  });
+
+  describe("orderOption validation", () => {
+    beforeEach(async () => {
+      await client.restoreSession();
+    });
+
+    it("throws NotFoundError when no tradable option found", async () => {
+      // getChains
+      mockRequestGet.mockResolvedValueOnce({ id: "c1", expiration_dates: [] });
+      // findTradableOptions returns empty
+      mockRequestGet.mockResolvedValueOnce([]);
+
+      await expect(
+        client.orderOption("AAPL", "2025-01-17", 150, "call", "buy", "open", 1, 5.0),
+      ).rejects.toThrow(NotFoundError);
+    });
+  });
+
+  describe("orderCrypto validation", () => {
+    beforeEach(async () => {
+      await client.restoreSession();
+    });
+
+    it("throws NotFoundError when crypto pair not found", async () => {
+      // getCryptoQuote → cryptoCurrencyPairs
+      mockRequestGet.mockResolvedValueOnce([{ id: "btc-usd", asset_currency: { code: "BTC" } }]);
+
+      await expect(client.orderCrypto("INVALID", "buy", 1)).rejects.toThrow(NotFoundError);
     });
   });
 

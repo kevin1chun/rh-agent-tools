@@ -1,10 +1,10 @@
-# rh-agent-tools
+# rh-for-agents
 
 AI-native Robinhood trading interface — TypeScript monorepo with a standalone API client and MCP server.
 
 ## Project Structure
-- `packages/client/` — `@rh-agent-tools/client`: Standalone Robinhood API client
-- `packages/server/` — `rh-agent-tools`: MCP server with 18 tools
+- `packages/client/` — `@rh-for-agents/client`: Standalone Robinhood API client
+- `packages/server/` — `rh-for-agents`: MCP server with 18 tools
 - `.claude/skills/` — Claude Code skills for interactive use (SKILL.md only, no scripts)
 - `docs/` — Architecture, access controls, use cases, contributing
 
@@ -20,7 +20,7 @@ AI-native Robinhood trading interface — TypeScript monorepo with a standalone 
 ## Running the MCP Server
 ```bash
 bun install
-bun packages/server/bin/rh-agent-tools.ts
+bun packages/server/bin/rh-for-agents.ts
 ```
 
 ## Development
@@ -33,7 +33,7 @@ npx vitest run      # all tests (use vitest, NOT bun test)
 ## Skills
 Canonical skill source is `packages/server/skills/`. Local `.claude/skills/` contains symlinks for development.
 
-Install MCP server + skills: `bun packages/server/bin/rh-agent-tools.ts install`
+Install MCP server + skills: `bun packages/server/bin/rh-for-agents.ts install`
 
 Skills use three-layer progressive disclosure:
 1. **SKILL.md** — MCP tool orchestration (default)
@@ -49,7 +49,7 @@ Available skills:
 
 ## Client Patterns
 ```typescript
-import { RobinhoodClient, getClient } from "@rh-agent-tools/client";
+import { RobinhoodClient, getClient } from "@rh-for-agents/client";
 
 // Class-based
 const client = new RobinhoodClient();
@@ -62,7 +62,7 @@ await rh.restoreSession();
 ```
 - All methods are `async` (native `fetch` under the hood)
 - Multi-account is first-class: every account-scoped method accepts `accountNumber`
-- Session cached to `~/.rh-agent-tools/session.enc` (AES-256-GCM, key in OS keychain)
+- Session cached to `~/.rh-for-agents/session.enc` (AES-256-GCM, key in OS keychain)
 - Proper exceptions: `AuthenticationError`, `APIError`
 - **Do NOT use `phoenix.robinhood.com`** — it rejects TLS. Use `api.robinhood.com` endpoints only.
 

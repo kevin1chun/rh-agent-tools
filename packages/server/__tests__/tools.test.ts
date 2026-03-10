@@ -2,8 +2,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { describe, expect, it, vi } from "vitest";
 import { createServer } from "../src/server.js";
 
-// Mock @rh-agent-tools/client so tools don't need real auth
-vi.mock("@rh-agent-tools/client", () => {
+// Mock @rh-for-agents/client so tools don't need real auth
+vi.mock("@rh-for-agents/client", () => {
   const mockClient = {
     restoreSession: vi.fn().mockResolvedValue({ status: "logged_in", method: "cached" }),
     isLoggedIn: true,
@@ -226,5 +226,123 @@ describe("Tool handlers return MCP content format", () => {
     const loginData = await callTool(tools, "robinhood_browser_login");
     expect(loginData.status).toBe("logged_in");
     expect(loginData.account_hint).toBe("...4521");
+  });
+
+  it("registerOptionsTools returns chain and options", async () => {
+    const { registerOptionsTools } = await import("../src/tools/options.js");
+    const { server, tools } = captureMockServer();
+    registerOptionsTools(server);
+
+    expect(tools.robinhood_get_options).toBeDefined();
+
+    const data = await callTool(tools, "robinhood_get_options", {
+      symbol: "AAPL",
+    });
+    expect(data.chain_info).toEqual({ id: "chain1", expiration_dates: ["2025-01-17"] });
+    expect(data.options).toHaveLength(1);
+    expect(data.options[0].id).toBe("opt1");
+  });
+
+  it("registerOptionsTools includes market data when all filters provided", async () => {
+    const { registerOptionsTools } = await import("../src/tools/options.js");
+    const { server, tools } = captureMockServer();
+    registerOptionsTools(server);
+
+    const data = await callTool(tools, "robinhood_get_options", {
+      symbol: "AAPL",
+      expiration_date: "2025-01-17",
+      strike_price: 150,
+      option_type: "call",
+    });
+    expect(data.market_data).toEqual([{ implied_volatility: "0.3" }]);
+  });
+
+  it("registerCryptoTools quote handler", async () => {
+    const { registerCryptoTools } = await import("../src/tools/crypto.js");
+    const { server, tools } = captureMockServer();
+    registerCryptoTools(server);
+
+    expect(tools.robinhood_get_crypto).toBeDefined();
+
+    const data = await callTool(tools, "robinhood_get_crypto", {
+      symbol: "BTC",
+      info_type: "quote",
+    });
+    expect(data.quote).toEqual({ mark_price: "50000.00" });
+  });
+
+  it("registerCryptoTools positions handler", async () => {
+    const { registerCryptoTools } = await import("../src/tools/crypto.js");
+    const { server, tools } = captureMockServer();
+    registerCryptoTools(server);
+
+    const data = await callTool(tools, "robinhood_get_crypto", {
+      info_type: "positions",
+    });
+    expect(data.positions).toEqual([{ currency: { code: "BTC" } }]);
+  });
+
+  it("registerCryptoTools requires symbol for quote", async () => {
+    const { registerCryptoTools } = await import("../src/tools/crypto.js");
+    const { server, tools } = captureMockServer();
+    registerCryptoTools(server);
+
+    const handler = tools.robinhood_get_crypto as ToolHandler;
+    const result = (await handler({ info_type: "quote" })) as {
+      content: Array<{ text: string }>;
+      isError: boolean;
+    };
+    expect(result.isError).toBe(true);
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}");
+    expect(parsed.error).toContain("symbol is required");
+  });
+});
+
+describe("Tool error handling", () => {
+  it("returns isError when client method throws", async () => {
+    const { getClient } = await import("@rh-for-agents/client");
+    const rh = getClient();
+    (rh.getQuotes as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("API failure"));
+
+    const { registerStockTools } = await import("../src/tools/stocks.js");
+    const { server, tools } = captureMockServer();
+    registerStockTools(server);
+
+    const handler = tools.robinhood_get_stock_quote as ToolHandler;
+    const result = (await handler({ symbols: "AAPL" })) as {
+      content: Array<{ text: string }>;
+      isError: boolean;
+    };
+    expect(result.isError).toBe(true);
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}");
+    expect(parsed.error).toContain("API failure");
+  });
+
+  it("returns isError when order placement throws", async () => {
+    const { getClient } = await import("@rh-for-agents/client");
+    const rh = getClient();
+    (rh.orderStock as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error("Insufficient funds"),
+    );
+
+    const { registerOrderTools } = await import("../src/tools/orders.js");
+    const { server, tools } = captureMockServer();
+    registerOrderTools(server);
+
+    const handler = tools.robinhood_place_stock_order as ToolHandler;
+    const result = (await handler({
+      symbol: "AAPL",
+      side: "buy",
+      quantity: 100,
+      time_in_force: "gtc",
+      extended_hours: false,
+      trail_type: "percentage",
+    })) as {
+      content: Array<{ text: string }>;
+      isError: boolean;
+    };
+    expect(result.isError).toBe(true);
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}");
+    expect(parsed.error).toContain("Insufficient funds");
   });
 });

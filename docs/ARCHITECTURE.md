@@ -1,4 +1,4 @@
-# rh-agent-tools — Architecture & Design
+# rh-for-agents — Architecture & Design
 
 ## Context
 
@@ -24,7 +24,7 @@
 │          ▼                            ▼                         │
 │   ┌───────────────────────────────────────────┐                 │
 │   │      packages/client/src/                 │                 │
-│   │      @rh-agent-tools/client               │                 │
+│   │      @rh-for-agents/client               │                 │
 │   │  ┌─────────────────────────────────────┐  │                 │
 │   │  │  session: RobinhoodSession (fetch)  │  │                 │
 │   │  │  loggedIn: boolean                  │  │                 │
@@ -60,7 +60,7 @@
 ## File Map
 
 ```
-packages/client/src/          <- @rh-agent-tools/client
+packages/client/src/          <- @rh-for-agents/client
 ├── index.ts                  <- Exports: RobinhoodClient, getClient(), login()
 ├── client.ts                 <- RobinhoodClient class (~50 async methods)
 ├── auth.ts                   <- Session restore + token refresh
@@ -72,7 +72,7 @@ packages/client/src/          <- @rh-agent-tools/client
 ├── types.ts                  <- Zod schemas + inferred types
 └── branded.ts                <- AccountNumber, OrderId, etc. branded types
 
-packages/server/src/           <- rh-agent-tools MCP server
+packages/server/src/           <- rh-for-agents MCP server
 ├── index.ts                   <- main() export, StdioServerTransport
 ├── server.ts                  <- McpServer creation + tool registration
 ├── browser-auth.ts            <- Playwright browser login capture
@@ -103,7 +103,7 @@ packages/server/src/           <- rh-agent-tools MCP server
 │                          │                                │
 │                          ▼                                │
 │              loadTokens()                                 │
-│    ~/.rh-agent-tools/session.enc                          │
+│    ~/.rh-for-agents/session.enc                          │
 │              │                                            │
 │              ├─── AES-256-GCM decrypt                     │
 │              │    (key from OS keychain via keytar)        │
@@ -145,10 +145,10 @@ packages/server/src/           <- rh-agent-tools MCP server
 │  Format: [iv (12)] [tag (16)] [ciphertext]         │
 │         │                                          │
 │         ▼                                          │
-│  ~/.rh-agent-tools/session.enc  (0o600)            │
+│  ~/.rh-for-agents/session.enc  (0o600)            │
 │                                                    │
 │  Key: OS Keychain (via keytar)                     │
-│  ├── service: "rh-agent-tools"                     │
+│  ├── service: "rh-for-agents"                     │
 │  └── username: "encryption-key"                    │
 │  Generated once via randomBytes(32)                │
 │  Never on filesystem.                              │

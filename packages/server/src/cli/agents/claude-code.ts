@@ -6,12 +6,12 @@ import type { AgentMeta } from "./types.js";
 function installMcp(binPath: string): void {
   // Remove existing entry (ignore errors if not found)
   try {
-    execSync("claude mcp remove rh-agent-tools", { stdio: "pipe" });
+    execSync("claude mcp remove rh-for-agents", { stdio: "pipe" });
   } catch {
     // not found — fine
   }
 
-  execSync(`claude mcp add -s user rh-agent-tools -- bun run ${binPath}`, {
+  execSync(`claude mcp add -s user rh-for-agents -- bun run ${binPath}`, {
     stdio: "pipe",
   });
 }

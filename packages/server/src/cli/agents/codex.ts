@@ -2,7 +2,7 @@ import { execSync } from "node:child_process";
 import type { AgentMeta } from "./types.js";
 
 function installMcp(binPath: string): void {
-  execSync(`codex mcp add rh-agent-tools -- bun run ${binPath}`, { stdio: "pipe" });
+  execSync(`codex mcp add rh-for-agents -- bun run ${binPath}`, { stdio: "pipe" });
 }
 
 export const codex: AgentMeta = {

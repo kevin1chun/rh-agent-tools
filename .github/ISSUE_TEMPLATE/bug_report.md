@@ -6,7 +6,7 @@ labels: bug
 
 ## Environment
 
-- **rh-agent-tools version**:
+- **rh-for-agents version**:
 - **Bun version** (`bun --version`):
 - **OS**:
 - **MCP client** (Claude Code / Claude Desktop / other):

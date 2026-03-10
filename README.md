@@ -1,13 +1,14 @@
-# rh-agent-tools
+# rh-for-agents
 
-[![CI](https://github.com/kevin1chun/rh-agent-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/kevin1chun/rh-agent-tools/actions/workflows/ci.yml)
+[![CI](https://github.com/kevin1chun/rh-for-agents/actions/workflows/ci.yml/badge.svg)](https://github.com/kevin1chun/rh-for-agents/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/rh-for-agents)](https://www.npmjs.com/package/rh-for-agents)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-AI-native Robinhood trading interface — TypeScript monorepo with a standalone API client and MCP server.
+Robinhood for AI agents — TypeScript monorepo with a standalone API client and MCP server.
 
 Two packages:
-- **`@rh-agent-tools/client`** — Standalone Robinhood API client (~50 async methods)
-- **`rh-agent-tools`** — MCP server with 18 structured tools for any MCP-compatible AI agent
+- **`@rh-for-agents/client`** — Standalone Robinhood API client (~50 async methods)
+- **`rh-for-agents`** — MCP server with 18 structured tools for any MCP-compatible AI agent
 
 Compatible with **Claude Code**, **Codex**, **OpenClaw**, and any MCP-compatible agent.
 
@@ -17,79 +18,97 @@ Compatible with **Claude Code**, **Codex**, **OpenClaw**, and any MCP-compatible
 - Google Chrome
 - A Robinhood account
 
-## Quick Start (local install)
+## Quick Start
+
+### Guided setup (recommended)
 
 ```bash
-git clone https://github.com/kevin1chun/rh-agent-tools.git
-cd rh-agent-tools
+# Requires Bun runtime — see Prerequisites
+npx rh-for-agents onboard
+```
+
+The interactive setup detects your agent, registers the MCP server, installs skills (where supported), and walks you through Robinhood login.
+
+You can also specify your agent directly:
+
+```bash
+rh-for-agents onboard --agent claude-code
+rh-for-agents onboard --agent codex
+rh-for-agents onboard --agent openclaw
+```
+
+### From source
+
+```bash
+git clone https://github.com/kevin1chun/rh-for-agents.git
+cd rh-for-agents
 bun install
+bun packages/server/bin/rh-for-agents.ts onboard
 ```
 
-### 1. Install MCP server + skills
-
-```bash
-bun packages/server/bin/rh-agent-tools.ts install
-```
-
-This does two things:
-- Adds the MCP server to `~/.claude/settings.json` (global — available in all projects)
-- Copies 5 skills to `.claude/skills/` in the current directory
-
-Restart Claude Code to pick up the changes.
-
-You can also install them separately:
-
-```bash
-bun packages/server/bin/rh-agent-tools.ts install --mcp     # MCP server config only
-bun packages/server/bin/rh-agent-tools.ts install --skills   # Skills only
-```
+### Manual setup
 
 <details>
-<summary>Manual setup (Claude Desktop or other MCP clients)</summary>
+<summary>Claude Code</summary>
+
+```bash
+# Register MCP server (global — available in all projects)
+claude mcp add -s user rh-for-agents -- bun run /path/to/packages/server/bin/rh-for-agents.ts
+
+# Install skills (per-project, optional)
+cd your-project
+rh-for-agents install --skills
+```
+
+Restart Claude Code to pick up the changes. Claude Code supports 5 trading skills in addition to the 18 MCP tools — see [Skills](#skills-5).
+</details>
+
+<details>
+<summary>Codex</summary>
+
+```bash
+codex mcp add rh-for-agents -- bun run /path/to/packages/server/bin/rh-for-agents.ts
+```
+
+Restart Codex to pick up the changes. Codex uses all 18 MCP tools directly.
+</details>
+
+<details>
+<summary>OpenClaw (skills only)</summary>
+
+```bash
+rh-for-agents onboard --agent openclaw
+```
+
+This installs 5 trading skills to `~/.openclaw/workspace/skills/`. Restart the OpenClaw gateway to pick up the changes.
+
+OpenClaw does not natively support MCP servers. For MCP tool access, configure [`@aiwerk/openclaw-mcp-bridge`](https://www.npmjs.com/package/@aiwerk/openclaw-mcp-bridge) separately.
+</details>
+
+<details>
+<summary>Other MCP clients (Claude Desktop, etc.)</summary>
 
 Add to your MCP client's config (e.g. `~/Library/Application Support/Claude/claude_desktop_config.json` for Claude Desktop):
 
 ```json
 {
   "mcpServers": {
-    "rh-agent-tools": {
+    "rh-for-agents": {
       "command": "bun",
-      "args": ["run", "/absolute/path/to/rh-agent-tools/packages/server/bin/rh-agent-tools.ts"]
+      "args": ["run", "/absolute/path/to/rh-for-agents/packages/server/bin/rh-for-agents.ts"]
     }
   }
 }
 ```
 </details>
 
-### 2. Authenticate
+## Authenticate
 
-Start Claude Code and say "setup robinhood" (or call `robinhood_browser_login` directly). Chrome will open to the real Robinhood login page — log in with your credentials and MFA. The session is cached and auto-restores for ~24 hours.
-
-## Quick Start (npm — IN PROGRESS)
-
-Once published to npm, the setup simplifies to:
-
-```bash
-npm install -g rh-agent-tools
-
-# Install MCP server config + skills (same as local, but no bun prefix needed)
-cd your-project
-rh-agent-tools install
-```
-
-## Client Library (standalone)
-
-```typescript
-import { RobinhoodClient } from "@rh-agent-tools/client";
-
-const client = new RobinhoodClient();
-await client.restoreSession();
-
-const quotes = await client.getQuotes("AAPL");
-const portfolio = await client.buildHoldings();
-```
+Start your agent and say "setup robinhood" (or call `robinhood_browser_login` directly). Chrome will open to the real Robinhood login page — log in with your credentials and MFA. The session is cached and auto-restores for ~24 hours.
 
 ## MCP Tools (18)
+
+All 18 tools work with every MCP-compatible agent.
 
 | Tool | Description |
 |------|-------------|
@@ -112,9 +131,9 @@ const portfolio = await client.buildHoldings();
 | `robinhood_get_order_status` | Get status of a specific order by ID |
 | `robinhood_search` | Search stocks or browse categories |
 
-## Claude Code Skills (5)
+## Skills (5)
 
-Install skills into any project (see [Quick Start](#quick-start-local-install) for full setup).
+Skills provide guided workflows on top of MCP tools. Supported by **Claude Code** and **OpenClaw**. Agents without skill support (Codex, etc.) use the 18 MCP tools directly, which provide the same functionality.
 
 | Skill | Triggers |
 |-------|----------|
@@ -124,7 +143,30 @@ Install skills into any project (see [Quick Start](#quick-start-local-install) f
 | `robinhood-trade` | "buy 10 AAPL", "sell my position" |
 | `robinhood-options` | "show AAPL options", "find calls" |
 
-Each skill includes a `client-api.md` reference for advanced users who want Claude to generate TypeScript scripts using `@rh-agent-tools/client`.
+Each skill includes a `client-api.md` reference for advanced users who want their agent to generate TypeScript scripts using `@rh-for-agents/client`.
+
+## Agent Compatibility
+
+| Feature | Claude Code | Codex | OpenClaw | Other MCP |
+|---------|:-----------:|:-----:|:--------:|:---------:|
+| 18 MCP tools | Yes | Yes | Via bridge* | Yes |
+| 5 trading skills | Yes | — | Yes | — |
+| `onboard` setup | Yes | Yes | Yes | — |
+| Browser auth | Yes | Yes | Yes | Yes |
+
+\* OpenClaw does not natively support MCP. Use [`@aiwerk/openclaw-mcp-bridge`](https://www.npmjs.com/package/@aiwerk/openclaw-mcp-bridge) for MCP tool access.
+
+## Client Library (standalone)
+
+```typescript
+import { RobinhoodClient } from "@rh-for-agents/client";
+
+const client = new RobinhoodClient();
+await client.restoreSession();
+
+const quotes = await client.getQuotes("AAPL");
+const portfolio = await client.buildHoldings();
+```
 
 ## Safety
 
@@ -136,11 +178,11 @@ Each skill includes a `client-api.md` reference for advanced users who want Clau
 
 ## Authentication
 
-Sessions are cached to `~/.rh-agent-tools/session.enc` (AES-256-GCM encrypted, key in OS keychain). Authentication uses browser-based login — `robinhood_browser_login` opens Chrome to the real Robinhood login page where you handle MFA natively. After initial login, subsequent authentication is automatic until the token expires (~24 hours).
+Sessions are cached to `~/.rh-for-agents/session.enc` (AES-256-GCM encrypted, key in OS keychain). Authentication uses browser-based login — `robinhood_browser_login` opens Chrome to the real Robinhood login page where you handle MFA natively. After initial login, subsequent authentication is automatic until the token expires (~24 hours).
 
-**MCP**: Call `robinhood_browser_login` to open Chrome and log in. After that, all tools auto-restore the cached session.
+**MCP**: Call `robinhood_browser_login` to open Chrome and log in (works with all agents). After that, all tools auto-restore the cached session.
 
-**Skills**: Run the `robinhood-setup` skill for guided browser login.
+**Skills**: Run the `robinhood-setup` skill for guided browser login (Claude Code and OpenClaw).
 
 ## Development
 
@@ -148,7 +190,7 @@ Sessions are cached to `~/.rh-agent-tools/session.enc` (AES-256-GCM encrypted, k
 bun install                    # Install deps
 bun run typecheck              # tsc --noEmit
 bun run check                  # Biome lint + format
-npx vitest run                 # Run all tests (120 tests)
+npx vitest run                 # Run all tests
 ```
 
 ## Architecture

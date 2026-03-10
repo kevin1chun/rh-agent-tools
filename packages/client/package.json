@@ -1,17 +1,17 @@
 {
-  "name": "@rh-agent-tools/client",
-  "version": "0.3.0",
+  "name": "@rh-for-agents/client",
+  "version": "0.1.0",
   "type": "module",
   "description": "TypeScript Robinhood API client for AI-native trading interfaces",
   "license": "MIT",
   "author": "Kevin Chun",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kevin1chun/rh-agent-tools.git",
+    "url": "https://github.com/kevin1chun/rh-for-agents.git",
     "directory": "packages/client"
   },
-  "homepage": "https://github.com/kevin1chun/rh-agent-tools#readme",
-  "bugs": "https://github.com/kevin1chun/rh-agent-tools/issues",
+  "homepage": "https://github.com/kevin1chun/rh-for-agents#readme",
+  "bugs": "https://github.com/kevin1chun/rh-for-agents/issues",
   "keywords": [
     "robinhood",
     "trading",
@@ -32,9 +32,13 @@
   },
   "files": ["src"],
   "dependencies": {
-    "zod": "^3.24.0"
+    "zod": "^4.3.6"
   },
   "optionalDependencies": {
     "keytar": "^7.9.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

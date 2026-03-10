@@ -4,7 +4,7 @@
 
 | Version | Supported |
 |---------|-----------|
-| 0.3.x   | Yes       |
+| 0.1.x   | Yes       |
 
 ## Reporting a Vulnerability
 
@@ -23,7 +23,7 @@ You will receive an acknowledgment within 48 hours and a detailed response withi
 
 **In scope:**
 - Token or credential leakage
-- Encryption weaknesses in session storage (`~/.rh-agent-tools/session.enc`)
+- Encryption weaknesses in session storage (`~/.rh-for-agents/session.enc`)
 - Unauthorized order execution or account access
 - Bypassing safety controls (blocked operations, parameter validation)
 

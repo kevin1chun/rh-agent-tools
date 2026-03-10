@@ -1,4 +1,4 @@
-/** Entry point for rh-agent-tools MCP server. */
+/** Entry point for rh-for-agents MCP server. */
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createServer } from "./server.js";

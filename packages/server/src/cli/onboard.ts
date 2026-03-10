@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import * as p from "@clack/prompts";
-import { loadTokens } from "@rh-agent-tools/client";
+import { loadTokens } from "@rh-for-agents/client";
 import { claudeCode } from "./agents/claude-code.js";
 import { codex } from "./agents/codex.js";
 import { openclaw } from "./agents/openclaw.js";
@@ -15,7 +15,7 @@ const agentMap: Record<AgentId, AgentMeta> = {
 };
 
 export async function onboard(preselectedAgent?: AgentId): Promise<void> {
-  p.intro("rh-agent-tools setup");
+  p.intro("rh-for-agents setup");
 
   // --- Agent selection ---
   let agentId: AgentId;
@@ -61,7 +61,10 @@ export async function onboard(preselectedAgent?: AgentId): Promise<void> {
   }
 
   // --- Confirm installation scope ---
-  const installItems = ["Register rh-agent-tools MCP server"];
+  const installItems: string[] = [];
+  if (agent.installMcp) {
+    installItems.push("Register rh-for-agents MCP server");
+  }
   if (agent.supportsSkills) {
     installItems.push("Install 5 trading skills");
   }
@@ -81,17 +84,19 @@ export async function onboard(preselectedAgent?: AgentId): Promise<void> {
   }
 
   // --- Install MCP ---
-  const binPath = resolve(import.meta.dirname, "../../bin/rh-agent-tools.ts");
+  const binPath = resolve(import.meta.dirname, "../../bin/rh-for-agents.ts");
 
-  const mcpSpinner = p.spinner();
-  mcpSpinner.start("Installing MCP config...");
-  try {
-    agent.installMcp(binPath);
-    mcpSpinner.stop("MCP server registered.");
-  } catch (err) {
-    mcpSpinner.stop("MCP installation failed.");
-    p.log.error(err instanceof Error ? err.message : "Unknown error during MCP install");
-    process.exit(1);
+  if (agent.installMcp) {
+    const mcpSpinner = p.spinner();
+    mcpSpinner.start("Installing MCP config...");
+    try {
+      agent.installMcp(binPath);
+      mcpSpinner.stop("MCP server registered.");
+    } catch (err) {
+      mcpSpinner.stop("MCP installation failed.");
+      p.log.error(err instanceof Error ? err.message : "Unknown error during MCP install");
+      process.exit(1);
+    }
   }
 
   // --- Install skills ---
@@ -113,7 +118,12 @@ export async function onboard(preselectedAgent?: AgentId): Promise<void> {
   let skipLogin = false;
 
   // Check for existing session
-  const existingTokens = await loadTokens();
+  let existingTokens: Awaited<ReturnType<typeof loadTokens>> | null = null;
+  try {
+    existingTokens = await loadTokens();
+  } catch {
+    // Corrupted file, keytar failure, etc. — fall through to login prompt
+  }
   if (existingTokens) {
     const reuse = await p.confirm({
       message: "Existing Robinhood session found. Skip login?",
