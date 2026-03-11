@@ -1,6 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import type { Mock } from "vitest";
 import { deleteTokens, loadTokens, saveTokens } from "../../src/client/token-store.js";
 
 const sampleTokens = {
