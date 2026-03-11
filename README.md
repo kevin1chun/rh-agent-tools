@@ -2,12 +2,13 @@
 
 [![CI](https://github.com/kevin1chun/robinhood-for-agents/actions/workflows/ci.yml/badge.svg)](https://github.com/kevin1chun/robinhood-for-agents/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/robinhood-for-agents)](https://www.npmjs.com/package/robinhood-for-agents)
+[![ClawHub](https://img.shields.io/badge/ClawHub-robinhood--for--agents-blue)](https://clawhub.ai/kevin1chun/robinhood-for-agents)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Robinhood for AI agents — an MCP server with 18 structured tools and a standalone TypeScript client, in a single package.
 
 - **18 MCP tools** for any MCP-compatible AI agent
-- **5 trading skills** for guided workflows (Claude Code, OpenClaw)
+- **Unified trading skill** for guided workflows (Claude Code, OpenClaw, [ClawHub](https://clawhub.ai/kevin1chun/robinhood-for-agents))
 - **Standalone API client** (~50 async methods) for programmatic use
 
 Compatible with **Claude Code**, **Codex**, **OpenClaw**, and any MCP-compatible agent.
@@ -60,7 +61,7 @@ cd your-project
 robinhood-for-agents install --skills
 ```
 
-Restart Claude Code to pick up the changes. Claude Code supports 5 trading skills in addition to the 18 MCP tools — see [Skills](#skills-5).
+Restart Claude Code to pick up the changes. Claude Code supports the unified trading skill in addition to the 18 MCP tools — see [Skill](#skill).
 </details>
 
 <details>
@@ -74,13 +75,19 @@ Restart Codex to pick up the changes. Codex uses all 18 MCP tools directly.
 </details>
 
 <details>
-<summary>OpenClaw (skills only)</summary>
+<summary>OpenClaw</summary>
 
+**Via ClawHub (recommended):**
+```bash
+clawhub install robinhood-for-agents
+```
+
+**Via onboard CLI:**
 ```bash
 robinhood-for-agents onboard --agent openclaw
 ```
 
-This installs 5 trading skills to `~/.openclaw/workspace/skills/`. Restart the OpenClaw gateway to pick up the changes.
+Both install the unified `robinhood-for-agents` skill to `~/.openclaw/workspace/skills/`. No MCP server required — the skill uses the TypeScript client API directly via `bun`.
 
 </details>
 
@@ -136,26 +143,34 @@ All 18 tools work with every MCP-compatible agent.
 | `robinhood_get_order_status` | Get status of a specific order by ID |
 | `robinhood_search` | Search stocks or browse categories |
 
-## Skills (5)
+## Skill
 
-Skills provide guided workflows on top of MCP tools. Supported by **Claude Code** and **OpenClaw**. Agents without skill support (Codex, etc.) use the 18 MCP tools directly, which provide the same functionality.
+A single unified skill (`robinhood-for-agents`) provides guided workflows for auth, portfolio, research, trading, and options. Available on [ClawHub](https://clawhub.ai/kevin1chun/robinhood-for-agents) and supported by **Claude Code** and **OpenClaw**.
 
-| Skill | Triggers |
-|-------|----------|
-| `robinhood-setup` | "setup robinhood", "connect to robinhood" |
-| `robinhood-portfolio` | "show my portfolio", "my holdings" |
-| `robinhood-research` | "research AAPL", "analyze TSLA" |
-| `robinhood-trade` | "buy 10 AAPL", "sell my position" |
-| `robinhood-options` | "show AAPL options", "find calls" |
+```bash
+# Install via ClawHub
+clawhub install robinhood-for-agents
+```
 
-Each skill includes a `client-api.md` reference for advanced users who want their agent to generate TypeScript scripts using `robinhood-for-agents`.
+| Domain | Example Triggers |
+|--------|-----------------|
+| Setup | "setup robinhood", "connect to robinhood" |
+| Portfolio | "show my portfolio", "my holdings" |
+| Research | "research AAPL", "analyze TSLA" |
+| Trading | "buy 10 AAPL", "sell my position" |
+| Options | "show AAPL options", "SPX calls" |
+
+**Dual-mode:** The skill works with MCP tools (Claude Code) or standalone via the TypeScript client API and `bun` (OpenClaw, any agent with shell access). No MCP server required.
+
+The skill uses progressive disclosure — `SKILL.md` is the compact router, with domain-specific files (`portfolio.md`, `trade.md`, etc.) and a full `client-api.md` reference loaded on demand.
 
 ## Agent Compatibility
 
 | Feature | Claude Code | Codex | OpenClaw | Other MCP |
 |---------|:-----------:|:-----:|:--------:|:---------:|
-| 18 MCP tools | Yes | Yes | Yes | Yes |
-| 5 trading skills | Yes | — | Yes | — |
+| 18 MCP tools | Yes | Yes | — | Yes |
+| Trading skill | Yes | — | Yes | — |
+| ClawHub install | — | — | Yes | — |
 | `onboard` setup | Yes | Yes | Yes | — |
 | Browser auth | Yes | Yes | Yes | Yes |
 
@@ -184,7 +199,7 @@ const portfolio = await client.buildHoldings();
 
 **MCP**: Call `robinhood_browser_login` to open Chrome and log in (works with all agents). After that, all tools auto-restore the cached session.
 
-**Skills**: Run the `robinhood-setup` skill for guided browser login (Claude Code and OpenClaw).
+**Skills**: Say "setup robinhood" to trigger the guided browser login (Claude Code and OpenClaw).
 
 ### Full Auth Flow
 
@@ -279,18 +294,15 @@ This design is resilient to Robinhood UI changes — it doesn't depend on any DO
 │                                                                    │
 │  STORAGE                                                           │
 │  ───────                                                           │
-│  Primary: OS Keychain via Bun.secrets                              │
+│  OS Keychain via Bun.secrets (no plaintext fallback)               │
 │  ├── macOS: Keychain Services                                      │
 │  ├── Linux: libsecret (GNOME Keyring, KWallet)                    │
 │  └── Windows: Credential Manager                                   │
 │  Tokens never touch the filesystem.                                │
-│                                                                    │
-│  Fallback: plaintext JSON (~/.robinhood-for-agents/session.json)          │
-│  (CI environments, minimal installs without keychain)              │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-`Bun.secrets` stores tokens directly in the OS keychain — no intermediate encryption layer needed since the keychain itself provides encryption, access control, and tamper resistance. When `Bun.secrets` is unavailable (CI, headless servers), tokens fall back to a plaintext JSON file with a console warning.
+`Bun.secrets` stores tokens directly in the OS keychain — no intermediate encryption layer needed since the keychain itself provides encryption, access control, and tamper resistance. There is no plaintext fallback; `Bun.secrets` is required.
 
 Critically, **the AI agent never sees authentication tokens**. Token storage and HTTP authorization happen entirely within the MCP server process. The agent only receives structured tool results (quotes, positions, order confirmations) — never raw tokens, headers, or credentials. Even if the agent's conversation is logged or leaked, no secrets are exposed.
 
