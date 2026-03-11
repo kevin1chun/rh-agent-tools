@@ -364,10 +364,13 @@ export class RobinhoodClient {
       return chains[0] ?? emptyChain;
     }
 
-    // Equity path (existing behavior)
+    // Equity path — resolve instrument ID for correct chain lookup
+    const instruments = await this.findInstruments(sym);
+    const inst = instruments.find((i) => i.symbol === sym);
+    if (!inst) return emptyChain;
     const chains = (await requestGet(this.session, urls.optionChains(), {
       dataType: "results",
-      params: { equity_instrument_ids: "", state: "active", symbol: sym },
+      params: { equity_instrument_ids: inst.id, state: "active" },
     })) as OptionChain[];
     return chains[0] ?? emptyChain;
   }
