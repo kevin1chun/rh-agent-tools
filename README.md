@@ -173,6 +173,7 @@ const portfolio = await client.buildHoldings();
 
 ## Safety
 
+- **Tokens are never exposed to the AI agent** — authentication is handled entirely within the MCP server process; the agent only sees tool results, never access tokens or credentials
 - Fund transfers and bank operations are **blocked** — never exposed
 - Bulk cancel operations are **blocked**
 - All order placements require explicit parameters (no dangerous defaults)
@@ -290,6 +291,8 @@ This design is resilient to Robinhood UI changes — it doesn't depend on any DO
 ```
 
 `Bun.secrets` stores tokens directly in the OS keychain — no intermediate encryption layer needed since the keychain itself provides encryption, access control, and tamper resistance. When `Bun.secrets` is unavailable (CI, headless servers), tokens fall back to a plaintext JSON file with a console warning.
+
+Critically, **the AI agent never sees authentication tokens**. Token storage and HTTP authorization happen entirely within the MCP server process. The agent only receives structured tool results (quotes, positions, order confirmations) — never raw tokens, headers, or credentials. Even if the agent's conversation is logged or leaked, no secrets are exposed.
 
 ## Development
 
