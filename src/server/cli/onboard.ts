@@ -137,7 +137,8 @@ export async function onboard(preselectedAgent?: AgentId): Promise<void> {
 
   if (!skipLogin) {
     const wantLogin = await p.confirm({
-      message: "Log in to Robinhood? Chrome will open to robinhood.com/login",
+      message:
+        "Log in to Robinhood? A browser (Brave/Chrome or BROWSER_PATH) will open to robinhood.com/login",
       initialValue: true,
     });
 
@@ -145,11 +146,9 @@ export async function onboard(preselectedAgent?: AgentId): Promise<void> {
       const loginSpinner = p.spinner();
       loginSpinner.start("Waiting for login...");
       try {
-        const { browserLogin } = await import("../browser-auth.js");
+        const { browserLogin, formatLoginSuccessMessage } = await import("../browser-auth.js");
         const result = await browserLogin();
-        loginSpinner.stop(
-          `Logged in${result.account_hint ? ` (account ${result.account_hint})` : ""}.`,
-        );
+        loginSpinner.stop(formatLoginSuccessMessage(result));
       } catch (err) {
         loginSpinner.stop("Login failed.");
         p.log.error(err instanceof Error ? err.message : "Unknown error during login");

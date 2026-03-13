@@ -10,7 +10,7 @@ Check if a Robinhood session is active.
 **Response:** `{ "status": "logged_in" | "not_authenticated" }`
 
 ### robinhood_browser_login
-Open Chrome for browser-based Robinhood login. Captures OAuth tokens automatically.
+Open a Chromium-based browser (Brave/Chrome auto-detected on macOS, or `BROWSER_PATH`) for browser-based Robinhood login. Captures OAuth tokens automatically.
 
 **Parameters:** none
 

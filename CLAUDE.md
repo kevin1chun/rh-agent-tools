@@ -65,7 +65,7 @@ await rh.restoreSession();
 - **Do NOT use `phoenix.robinhood.com`** — it rejects TLS. Use `api.robinhood.com` endpoints only.
 
 ## Authentication
-- Browser login (`robinhood_browser_login`) opens system Chrome via playwright-core
+- Browser login (`robinhood_browser_login`) opens a Chromium-based browser via playwright-core. On macOS, Brave and Chrome are auto-detected; otherwise use `BROWSER_PATH` or `robinhood-for-agents login --chrome /path/to/browser`.
 - Purely passive — Playwright intercepts `/oauth2/token` network traffic, never interacts with the DOM
 - Request body (JSON) → captures `device_token`; Response → captures `access_token` + `refresh_token`
 - Tokens stored directly in OS keychain via `Bun.secrets` (never on disk)
