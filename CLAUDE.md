@@ -68,8 +68,9 @@ await rh.restoreSession();
 - Browser login (`robinhood_browser_login`) opens system Chrome via playwright-core
 - Purely passive — Playwright intercepts `/oauth2/token` network traffic, never interacts with the DOM
 - Request body (JSON) → captures `device_token`; Response → captures `access_token` + `refresh_token`
-- Tokens stored directly in OS keychain via `Bun.secrets` (never on disk)
+- Tokens stored in OS keychain via `Bun.secrets`; when `ROBINHOOD_TOKENS_FILE` is set (e.g. Docker), tokens are read from and written to that file.
 - `restoreSession()` validates cached token, falls back to refresh, then directs to browser login
+- **Docker / OpenClaw:** Container cannot use the host keychain. On the host run `login` then `docker-setup` (writes tokens + prints Docker config); optionally `sync-tokens --out <path> --interval 300` to keep the file updated. See `docs/DOCKER.md`.
 
 ## Safety Rules
 - **NEVER** place bulk cancel operations

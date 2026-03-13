@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { deleteTokens, loadTokens, saveTokens } from "../../src/client/token-store.js";
 
@@ -27,12 +30,17 @@ const mockSecrets = {
 (globalThis as any).Bun = { ...((globalThis as any).Bun ?? {}), secrets: mockSecrets };
 
 describe("token-store", () => {
+  const origEnv = process.env.ROBINHOOD_TOKENS_FILE;
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockSecretsStore.clear();
+    delete process.env.ROBINHOOD_TOKENS_FILE;
   });
 
   afterEach(() => {
+    if (origEnv !== undefined) process.env.ROBINHOOD_TOKENS_FILE = origEnv;
+    else delete process.env.ROBINHOOD_TOKENS_FILE;
     vi.restoreAllMocks();
   });
 
@@ -55,9 +63,10 @@ describe("token-store", () => {
       expect(parsed.saved_at).toBeTypeOf("number");
     });
 
-    it("throws when Bun.secrets is unavailable", async () => {
+    it("does not throw when Bun.secrets is unavailable (e.g. Docker)", async () => {
       mockSecrets.set.mockRejectedValueOnce(new Error("unavailable"));
-      await expect(saveTokens(sampleTokens)).rejects.toThrow("unavailable");
+      const result = await saveTokens(sampleTokens);
+      expect(result).toBe("keychain");
     });
   });
 
@@ -109,6 +118,43 @@ describe("token-store", () => {
 
     it("does not throw when nothing to delete", async () => {
       await expect(deleteTokens()).resolves.toBeUndefined();
+    });
+  });
+
+  describe("ROBINHOOD_TOKENS_FILE", () => {
+    it("loadTokens reads from file when env set", async () => {
+      const dir = mkdtempSync(join(tmpdir(), "rh-tokens-test-"));
+      const filePath = join(dir, "tokens.json");
+      const tokenData = {
+        ...sampleTokens,
+        saved_at: Date.now() / 1000,
+      };
+      writeFileSync(filePath, JSON.stringify(tokenData));
+      process.env.ROBINHOOD_TOKENS_FILE = filePath;
+
+      try {
+        const result = await loadTokens();
+        expect(result).not.toBeNull();
+        expect(result?.access_token).toBe("tok123");
+      } finally {
+        rmSync(dir, { recursive: true });
+      }
+    });
+
+    it("saveTokens writes to file when env set", async () => {
+      const dir = mkdtempSync(join(tmpdir(), "rh-tokens-test-"));
+      const filePath = join(dir, "tokens.json");
+      process.env.ROBINHOOD_TOKENS_FILE = filePath;
+
+      try {
+        const result = await saveTokens(sampleTokens);
+        expect(result).toBe(filePath);
+        const { readFileSync } = await import("node:fs");
+        const content = JSON.parse(readFileSync(filePath, "utf8"));
+        expect(content.access_token).toBe("tok123");
+      } finally {
+        rmSync(dir, { recursive: true });
+      }
     });
   });
 });

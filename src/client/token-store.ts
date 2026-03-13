@@ -1,10 +1,10 @@
 /**
  * Token storage using OS keychain via Bun.secrets.
  *
- * Tokens are stored as JSON directly in the OS keychain
- * (macOS Keychain Services, Linux libsecret, Windows Credential Manager).
- *
- * Bun.secrets is required — no plaintext fallback.
+ * Tokens are stored as JSON in the OS keychain (macOS Keychain Services,
+ * Linux libsecret, Windows Credential Manager). When ROBINHOOD_TOKENS_FILE
+ * is set (e.g. in Docker), tokens are read from and written to that file
+ * so the host can mount a file exported from the keychain.
  */
 
 const KEYRING_SERVICE = "robinhood-for-agents";
@@ -31,14 +31,22 @@ function isTokenData(data: unknown): data is TokenData {
   );
 }
 
-export async function saveTokens(tokens: Omit<TokenData, "saved_at">): Promise<string> {
-  const data: TokenData = { ...tokens, saved_at: Date.now() / 1000 };
-  const json = JSON.stringify(data);
-  await Bun.secrets.set(KEYRING_SERVICE, KEYRING_NAME, json);
-  return "keychain";
+function getTokensFilePath(): string | undefined {
+  return process.env.ROBINHOOD_TOKENS_FILE?.trim() || undefined;
 }
 
-export async function loadTokens(): Promise<TokenData | null> {
+async function loadTokensFromFile(path: string): Promise<TokenData | null> {
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const json = await readFile(path, "utf8");
+    const data: unknown = JSON.parse(json);
+    return isTokenData(data) ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+async function loadTokensFromKeychain(): Promise<TokenData | null> {
   try {
     const json = await Bun.secrets.get(KEYRING_SERVICE, KEYRING_NAME);
     if (json) {
@@ -51,10 +59,49 @@ export async function loadTokens(): Promise<TokenData | null> {
   return null;
 }
 
+export async function saveTokens(tokens: Omit<TokenData, "saved_at">): Promise<string> {
+  const data: TokenData = { ...tokens, saved_at: Date.now() / 1000 };
+  const json = JSON.stringify(data);
+
+  const filePath = getTokensFilePath();
+  try {
+    await Bun.secrets.set(KEYRING_SERVICE, KEYRING_NAME, json);
+  } catch {
+    // Keychain unavailable (e.g. Docker without keychain)
+  }
+  if (filePath) {
+    try {
+      const { writeFile } = await import("node:fs/promises");
+      await writeFile(filePath, json, "utf8");
+    } catch {
+      // Ignore write errors (e.g. read-only mount)
+    }
+  }
+  return filePath ?? "keychain";
+}
+
+export async function loadTokens(): Promise<TokenData | null> {
+  const filePath = getTokensFilePath();
+  if (filePath) {
+    const fromFile = await loadTokensFromFile(filePath);
+    if (fromFile) return fromFile;
+  }
+  return loadTokensFromKeychain();
+}
+
 export async function deleteTokens(): Promise<void> {
   try {
     await Bun.secrets.delete({ service: KEYRING_SERVICE, name: KEYRING_NAME });
   } catch {
     // Bun.secrets unavailable
+  }
+  const filePath = getTokensFilePath();
+  if (filePath) {
+    try {
+      const { unlink } = await import("node:fs/promises");
+      await unlink(filePath);
+    } catch {
+      // File missing or not writable
+    }
   }
 }
