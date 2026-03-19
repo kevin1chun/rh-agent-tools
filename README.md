@@ -5,17 +5,19 @@
 [![ClawHub](https://img.shields.io/badge/ClawHub-robinhood--for--agents-blue)](https://clawhub.ai/kevin1chun/robinhood-for-agents)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Robinhood for AI agents — an MCP server with 18 structured tools and a standalone TypeScript client, in a single package.
+Robinhood for AI agents — polyglot monorepo with TypeScript + Python SDKs, an MCP server with 18 tools, and a local auth proxy.
 
 - **18 MCP tools** for any MCP-compatible AI agent
 - **Unified trading skill** for guided workflows (Claude Code, OpenClaw, [ClawHub](https://clawhub.ai/kevin1chun/robinhood-for-agents))
-- **Standalone API client** (~50 async methods) for programmatic use
+- **TypeScript + Python client libraries** (~50 async methods each) for programmatic use
+- **Auth proxy** — tokens stay in the OS keychain, never exposed to the agent
 
 Compatible with **Claude Code**, **Codex**, **OpenClaw**, and any MCP-compatible agent.
 
 ## Prerequisites
 
-- [Bun](https://bun.sh/) v1.0+
+- [Bun](https://bun.sh/) v1.0+ (TypeScript SDK)
+- [Python](https://www.python.org/) 3.12+ and [uv](https://docs.astral.sh/uv/) (Python SDK — optional)
 - Google Chrome (used by `playwright-core` for browser-based login — no bundled browser)
 - A Robinhood account
 
@@ -42,7 +44,7 @@ robinhood-for-agents onboard --agent openclaw
 
 ```bash
 git clone https://github.com/kevin1chun/robinhood-for-agents.git
-cd robinhood-for-agents
+cd robinhood-for-agents/typescript
 bun install
 bun bin/robinhood-for-agents.ts onboard
 ```
@@ -300,12 +302,43 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full auth flow diagram 
 
 ## Development
 
+### TypeScript
+
 ```bash
+cd typescript
 bun install                    # Install deps
 bun run typecheck              # tsc --noEmit
 bun run check                  # Biome lint + format
 npx vitest run                 # Run all tests
 ```
+
+### Python
+
+```bash
+cd python
+uv sync --all-extras           # Install deps
+uv run ruff check .            # Lint
+uv run mypy src/               # Type check
+uv run pytest                  # Run all tests
+```
+
+### Integration tests (verify local setup)
+
+Integration tests hit the real Robinhood API (read-only) through the auth proxy. Use them to confirm your local dev environment is working end-to-end.
+
+```bash
+# 1. Login (opens Chrome — one-time)
+robinhood-for-agents login
+
+# 2. Start the auth proxy
+robinhood-for-agents proxy
+
+# 3. Run integration tests
+cd typescript && bun run test:integration
+cd python && uv run pytest -m integration
+```
+
+These are excluded from CI and the default test commands since they require real credentials.
 
 ## Architecture
 
