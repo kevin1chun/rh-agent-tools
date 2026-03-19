@@ -28,7 +28,7 @@ Compatible with **Claude Code**, **Codex**, **OpenClaw**, and any MCP-compatible
 npx robinhood-for-agents onboard
 ```
 
-The interactive setup detects your agent, registers the MCP server, installs skills (where supported), and walks you through Robinhood login.
+The interactive setup detects your agent, registers the MCP server, installs skills (where supported), walks you through Robinhood login, and configures the auth proxy. It handles both local and Docker deployments — just pick "This machine" or "Docker / remote" when prompted.
 
 You can also specify your agent directly:
 
@@ -186,9 +186,68 @@ const quotes = await client.getQuotes("AAPL");
 const portfolio = await client.buildHoldings();
 ```
 
+## Docker Deployment
+
+When deploying an agent in Docker (OpenClaw, custom agents, etc.), the container cannot access the host OS keychain. An **auth proxy** on the host bridges this gap — it holds tokens in the keychain and injects auth headers into requests from the container. No tokens, keys, or credentials enter the container.
+
+```
+┌─── Host ──────────────────────┐    ┌─── Container ──────────────┐
+│                               │    │                            │
+│ Keychain: has tokens          │    │ Keychain: empty            │
+│ Proxy: listens on :3100      │◄───│ Client: talks to proxy     │
+│                               │    │                            │
+│ Proxy receives request        │    │ No tokens on filesystem    │
+│ → validates proxy token       │    │ No RH tokens in env vars   │
+│ → injects Bearer header       │    │                            │
+│ → forwards to Robinhood API   │    │                            │
+│ → returns response            │    │                            │
+└───────────────────────────────┘    └────────────────────────────┘
+```
+
+### Setup
+
+The guided setup handles Docker — just pick "Docker / remote" when prompted:
+
+```bash
+npx robinhood-for-agents onboard
+```
+
+It will log you in, generate a proxy token, print copy-paste commands for your container, and optionally start the proxy.
+
+<details>
+<summary>Manual setup (without onboard)</summary>
+
+```bash
+# 1. Login on the host (opens Chrome for Robinhood login)
+npx robinhood-for-agents onboard   # or: bun bin/robinhood-for-agents.ts onboard
+
+# 2. Start the auth proxy with a known token
+export ROBINHOOD_PROXY_TOKEN="$(uuidgen)"
+npx robinhood-for-agents proxy --port 3100
+
+# 3. Verify
+curl http://localhost:3100/health   # {"status":"ok"}
+```
+
+```yaml
+# 4. docker-compose.yml
+services:
+  agent:
+    image: your-agent-image
+    environment:
+      ROBINHOOD_API_PROXY: "http://host.docker.internal:3100"
+      ROBINHOOD_PROXY_TOKEN: "${ROBINHOOD_PROXY_TOKEN}"
+```
+</details>
+
+> **Linux hosts**: Add `extra_hosts: ["host.docker.internal:host-gateway"]` to your Compose service.
+
+Kill the proxy on the host to instantly revoke all container access. See [docs/DOCKER.md](docs/DOCKER.md) for the full guide and [docs/SECURITY.md](docs/SECURITY.md) for the threat model.
+
 ## Safety
 
-- **Tokens are never exposed to the AI agent** — authentication is handled entirely within the MCP server process; the agent only sees tool results, never access tokens or credentials
+- **Tokens are never exposed to the AI agent** — all API calls route through an auth proxy that injects Bearer tokens. The agent only sees tool results, never access tokens or credentials.
+- **Docker isolation** — tokens stay in the host keychain. Containers only get a proxy URL. See [SECURITY.md](docs/SECURITY.md) for attack scenarios.
 - Fund transfers and bank operations are **blocked** — never exposed
 - Bulk cancel operations are **blocked**
 - All order placements require explicit parameters (no dangerous defaults)
@@ -197,114 +256,47 @@ const portfolio = await client.buildHoldings();
 
 ## Authentication
 
-**MCP**: Call `robinhood_browser_login` to open Chrome and log in (works with all agents). After that, all tools auto-restore the cached session.
+All API requests route through a local **auth proxy** that injects Bearer tokens from the OS keychain. The client never handles tokens directly.
 
-**Skills**: Say "setup robinhood" to trigger the guided browser login (Claude Code and OpenClaw).
+**Login**: Call `robinhood_browser_login` (MCP) or say "setup robinhood" (skills) to open Chrome. Log in normally with your credentials and MFA. Playwright passively intercepts the OAuth token response — it never clicks buttons or fills forms. Tokens are stored in the OS keychain via `Bun.secrets` (no files on disk).
 
-### Full Auth Flow
+**Token storage**: OS keychain only (macOS Keychain Services, Linux libsecret). No plaintext fallback. Two keychain entries: `session-tokens` (RH OAuth) and `proxy-token` (proxy access control shared secret). The proxy is the only component that reads RH tokens from the keychain — the client and agent never touch them directly.
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                                                                         │
-│  robinhood_browser_login              restoreSession()                  │
-│  (first-time / expired)               (every tool call)                │
-│          │                                    │                         │
-│          ▼                                    ▼                         │
-│  ┌───────────────────┐               loadTokens()                      │
-│  │ Playwright launches│               Bun.secrets.get() from           │
-│  │ system Chrome      │               OS keychain                      │
-│  │ (headless: false)  │               (macOS Keychain Services)        │
-│  └────────┬──────────┘                        │                        │
-│           │                                   │                         │
-│           ▼                                   ▼                         │
-│  ┌───────────────────┐               Set Authorization header          │
-│  │ Navigate to        │               Validate: GET /positions/        │
-│  │ robinhood.com/login│                       │                         │
-│  └────────┬──────────┘                  ┌─────┴─────┐                  │
-│           │                           Valid?      Invalid?             │
-│           ▼                             │           │                   │
-│  ┌───────────────────┐            return        ┌──┘                   │
-│  │ User logs in       │           "cached"       │                      │
-│  │ (email, password,  │                          ▼                      │
-│  │  MFA push/SMS)     │              POST /oauth2/token/               │
-│  └────────┬──────────┘              (grant_type: refresh_token,        │
-│           │                          expires_in: 734000)               │
-│           ▼                                 │                           │
-│  ┌───────────────────────────┐       ┌──────┴──────┐                   │
-│  │ Robinhood frontend calls   │    Success?      Failure?             │
-│  │ POST /oauth2/token         │       │              │                  │
-│  │                            │  saveTokens()     throw                │
-│  │ Playwright intercepts:     │  return          AuthError             │
-│  │  request  → device_token   │  "refreshed"     "Use browser_login"  │
-│  │  response → access_token,  │                                        │
-│  │             refresh_token   │                                        │
-│  └────────┬──────────────────┘                                         │
-│           │                                                             │
-│           ▼                                                             │
-│  saveTokens() ──► token-store.ts                                       │
-│           │       Bun.secrets.set() → OS keychain                      │
-│           │       (tokens never written to disk)                       │
-│           │                                                            │
-│           │                                                             │
-│           ▼                                                             │
-│  restoreSession() ──► client ready                                     │
-│  getAccountProfile() → account_hint                                    │
-│  Close browser                                                         │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
+### How the auth proxy starts
+
+The proxy is a lightweight HTTP server on `127.0.0.1:3100` that reads tokens from the keychain and injects `Authorization: Bearer` headers into every request forwarded to Robinhood. It also handles token refresh on 401 automatically.
+
+When `restoreSession()` is called, it runs `ensureProxy()` which:
+
+1. Checks if something is already listening on `:3100` (reuses it if so)
+2. If not, starts the proxy **in-process** via `Bun.serve()`
+
+This means:
+
+| Context | What happens | Proxy lifetime |
+|---------|-------------|----------------|
+| **MCP server** | Proxy starts once at boot, shared by all tool calls | Lives for the MCP session |
+| **Standalone script** (`bun -e`) | Proxy starts on first `restoreSession()`, reused for all calls | Dies when the script exits |
+| **Multiple processes** | Second process discovers the proxy on `:3100`, reads proxy token from OS keychain | Shared across processes |
+
+For **short-lived scripts** (skills, one-off commands), each invocation starts and stops the proxy with the process. This adds ~50ms of overhead per invocation. If you're running many short scripts and want to avoid this, start a persistent proxy in the background:
+
+```bash
+# Start a long-lived proxy (stays running until you kill it)
+npx robinhood-for-agents proxy &
+
+# Now any script will discover it on :3100 and reuse it
+bun -e "
+  import { getClient } from 'robinhood-for-agents';
+  const rh = getClient();
+  await rh.restoreSession();   // finds existing proxy, no startup cost
+  console.log(await rh.getQuotes('AAPL'));
+"
 ```
 
-The left path is the initial login (browser-based, user-interactive). The right path is the session restore (automatic, every tool call). When the cached access token is invalid, it attempts a silent refresh using the stored `refresh_token` (with `expires_in: 734000` ~8.5 days). If refresh also fails, the user is directed back to browser login.
+This is the same proxy used for [Docker deployment](#docker-deployment) — the only difference is whether it's started in-process (automatic) or as a standalone background process (explicit).
 
-### Why Browser-Based Auth
-
-The browser login is purely passive — Playwright never clicks buttons, fills forms, or predicts the login flow. It opens a real Chrome window, the user completes login entirely on their own (including whatever MFA Robinhood requires), and Playwright only intercepts the network traffic:
-
-- `page.on("request")` captures `device_token` from POST body to `/oauth2/token`
-- `page.on("response")` captures `access_token` + `refresh_token` from the 200 response
-
-This design is resilient to Robinhood UI changes — it doesn't depend on any DOM selectors, page structure, or login step ordering. As long as the OAuth token endpoint exists, the interception works. `playwright-core` is used (not `playwright`) so no browser binary is bundled — it drives the user's system Chrome.
-
-### Encrypted Token Storage
-
-```
-┌─ token-store.ts ──────────────────────────────────────────────────┐
-│                                                                    │
-│  SAVE                                                              │
-│  ────                                                              │
-│  TokenData (JSON):                                                 │
-│  {access_token, refresh_token, token_type, device_token, saved_at} │
-│         │                                                          │
-│         ▼                                                          │
-│  JSON.stringify()                                                  │
-│         │                                                          │
-│         ▼                                                          │
-│  Bun.secrets.set("robinhood-for-agents", "session-tokens", json)         │
-│  → OS encrypts and stores in keychain                              │
-│  → No file written to disk                                         │
-│                                                                    │
-│                                                                    │
-│  LOAD                                                              │
-│  ────                                                              │
-│  Bun.secrets.get("robinhood-for-agents", "session-tokens")               │
-│         │                                                          │
-│         ▼                                                          │
-│  JSON.parse() → TokenData                                          │
-│                                                                    │
-│                                                                    │
-│  STORAGE                                                           │
-│  ───────                                                           │
-│  OS Keychain via Bun.secrets (no plaintext fallback)               │
-│  ├── macOS: Keychain Services                                      │
-│  ├── Linux: libsecret (GNOME Keyring, KWallet)                    │
-│  └── Windows: Credential Manager                                   │
-│  Tokens never touch the filesystem.                                │
-└────────────────────────────────────────────────────────────────────┘
-```
-
-`Bun.secrets` stores tokens directly in the OS keychain — no intermediate encryption layer needed since the keychain itself provides encryption, access control, and tamper resistance. There is no plaintext fallback; `Bun.secrets` is required.
-
-Critically, **the AI agent never sees authentication tokens**. Token storage and HTTP authorization happen entirely within the MCP server process. The agent only receives structured tool results (quotes, positions, order confirmations) — never raw tokens, headers, or credentials. Even if the agent's conversation is logged or leaked, no secrets are exposed.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full auth flow diagram and [docs/SECURITY.md](docs/SECURITY.md) for the threat model.
 
 ## Development
 

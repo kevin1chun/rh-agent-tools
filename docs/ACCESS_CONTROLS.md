@@ -64,4 +64,5 @@ These operations are **never exposed** through MCP tools or skills.
 ### General
 - Session tokens expire after ~24 hours
 - Browser-based login only — no credentials pass through the tool layer
-- Session tokens stored in OS keychain via `Bun.secrets` (macOS Keychain Services); plaintext fallback for CI
+- Session tokens stored in OS keychain via `Bun.secrets` (macOS Keychain Services) — no plaintext fallback
+- See [SECURITY.md](./SECURITY.md) for the full threat model and deployment tiers

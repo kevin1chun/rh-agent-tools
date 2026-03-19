@@ -36,9 +36,9 @@ an individual is representing the project in public spaces.
 
 ## Enforcement
 
-Instances of unacceptable behavior may be reported to the project team at
-**kevin@taji.finance**. All complaints will be reviewed and investigated
-promptly and fairly.
+Instances of unacceptable behavior may be reported to the project team by
+[opening a GitHub issue](https://github.com/kevin1chun/robinhood-for-agents/issues).
+All complaints will be reviewed and investigated promptly and fairly.
 
 ## Attribution
 
