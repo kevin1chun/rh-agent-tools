@@ -11,16 +11,19 @@ catch { console.log("not_authenticated"); }
 ```
 If `logged_in` — already authenticated, stop. Otherwise continue.
 
+`restoreSession()` auto-starts a local auth proxy on `:3100` that injects tokens from the OS keychain into API requests. The client never handles tokens directly.
+
 ### Step 2: Browser Login
 ```bash
-bunx robinhood-for-agents login
+bunx robinhood-for-agents onboard
 ```
-This opens Chrome to the real Robinhood website:
+This runs the interactive setup — it will open Chrome to the real Robinhood website for login:
 1. Chrome opens to robinhood.com/login
 2. User enters email and password
 3. Robinhood handles MFA natively (push notification, SMS, etc.)
-4. Token captured automatically and saved securely
+4. Token captured automatically and saved to OS keychain
 5. Chrome closes when login is complete
+6. Auth proxy is started on `:3100`
 
 ### Step 3: Verify
 ```bash
@@ -34,12 +37,13 @@ console.log(JSON.stringify(acct, null, 2));
 ```
 Confirm to the user that authentication is complete.
 
-## Security Warning
-After successful login, **always** remind the user:
-
-> **Robinhood OAuth tokens are stored in the OS keychain (macOS Keychain Services, Linux libsecret, Windows Credential Manager) via Bun.secrets. No tokens are written to disk. Tokens expire after ~24 hours. Anyone with access to this machine's keychain can read them.**
+## Troubleshooting
+- **Port 3100 conflict**: Another process on `:3100` — kill it or run `robinhood-for-agents proxy --port N`
+- **`not_authenticated` after login**: Try `bunx robinhood-for-agents onboard` to re-login and restart the proxy
+- **Proxy not running**: `restoreSession()` auto-starts it, but you can also run `robinhood-for-agents proxy` manually
 
 ## Notes
 - No credentials (username/password) pass through the tool layer — login happens on the real Robinhood website
-- Requires Google Chrome installed on the system
+- Tokens are stored in the OS keychain via `Bun.secrets` — never on disk
 - Tokens expire after ~24h; the client auto-refreshes before requiring re-auth
+- All API calls route through the local auth proxy (`:3100`) which injects Bearer tokens — the agent never sees tokens

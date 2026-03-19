@@ -9,7 +9,7 @@ install:
     bins: [robinhood-for-agents]
 requires:
   bins: [bun, google-chrome]
-metadata: {"credentials":"OAuth tokens stored in OS keychain via Bun.secrets (macOS Keychain Services, Linux libsecret, Windows Credential Manager). No tokens on disk. Browser login captures tokens via Playwright intercepting network traffic — no DOM interaction. Tokens expire ~24h.","chrome":"Required only for initial login (bunx robinhood-for-agents login). Not needed for subsequent API calls."}
+metadata: {"credentials":"OAuth tokens stored in OS keychain via Bun.secrets. A local auth proxy on :3100 injects Bearer tokens into API requests — the client/agent never handles tokens directly. restoreSession() auto-starts the proxy. Tokens expire ~24h with auto-refresh.","chrome":"Required only for initial login (bunx robinhood-for-agents onboard). Not needed for subsequent API calls."}
 ---
 
 # robinhood-for-agents
