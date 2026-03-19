@@ -12,7 +12,7 @@
  * where Bun.secrets is unavailable.
  */
 
-import { describe, it, expect, beforeAll } from "bun:test";
+import { beforeAll, describe, expect, it } from "bun:test";
 import { RobinhoodClient } from "../../src/client/index.js";
 
 describe("integration: RobinhoodClient", () => {
