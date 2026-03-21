@@ -8,11 +8,13 @@ import uuid
 from typing import Self
 
 from . import _urls as urls
+from ._auth import AuthState, restore_session_from_token
 from ._auth import logout as _logout
 from ._auth import restore_session as _restore_session
 from ._errors import NotFoundError, NotLoggedInError
-from ._http import proxy_rewrite, request_get, request_post
+from ._http import request_get, request_post
 from ._session import Session
+from ._token_store import TokenStore, create_token_store
 from ._types import (
     Account,
     CryptoOrder,
@@ -64,10 +66,23 @@ class RobinhoodClient:
             quotes = await client.get_quotes("AAPL")
     """
 
-    def __init__(self, *, timeout: float = 16.0) -> None:
+    def __init__(
+        self,
+        *,
+        token_store: TokenStore | None = None,
+        access_token: str | None = None,
+        timeout: float = 16.0,
+    ) -> None:
         self._session = Session(timeout)
+        self._token_store = token_store or create_token_store()
+        self._auth_state: AuthState | None = None
         self._logged_in = False
         self._index_cache: dict[str, IndexInstrument] | None = None
+
+        # Direct access token — no store, no refresh
+        if access_token:
+            restore_session_from_token(self._session, access_token)
+            self._logged_in = True
 
     @property
     def is_logged_in(self) -> bool:
@@ -88,12 +103,14 @@ class RobinhoodClient:
     # -----------------------------------------------------------------------
 
     async def restore_session(self) -> LoginResult:
-        result = await _restore_session(self._session)
+        result, state = await _restore_session(self._session, self._token_store)
+        self._auth_state = state
         self._logged_in = True
         return result
 
     async def logout(self) -> None:
-        await _logout(self._session)
+        await _logout(self._session, self._auth_state)
+        self._auth_state = None
         self._logged_in = False
 
     def _require_auth(self) -> None:
@@ -171,11 +188,10 @@ class RobinhoodClient:
 
     async def get_instrument_by_url(self, url: str) -> Instrument:
         self._require_auth()
-        rewritten = proxy_rewrite(url)
-        if not rewritten.startswith(urls.API_BASE):
+        if not url.startswith(urls.API_BASE):
             msg = f"Refusing to fetch instrument from untrusted URL: {url}"
             raise RuntimeError(msg)
-        raw = await request_get(self._session, rewritten)
+        raw = await request_get(self._session, url)
         return Instrument.model_validate(raw)
 
     async def build_holdings(
@@ -636,7 +652,7 @@ class RobinhoodClient:
         direction: str,
         *,
         stop_price: float | None = None,
-        time_in_force: str = "gfd",
+        time_in_force: str,
         account_number: str | None = None,
     ) -> OptionOrder:
         self._require_auth()
@@ -728,7 +744,7 @@ class RobinhoodClient:
         amount_or_quantity: float,
         *,
         amount_in: str = "quantity",
-        order_type: str = "market",
+        order_type: str,
         limit_price: float | None = None,
     ) -> CryptoOrder:
         self._require_auth()

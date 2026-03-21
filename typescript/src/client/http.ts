@@ -4,30 +4,7 @@ import { z } from "zod";
 import { redactTokens, scrubSensitiveKeys } from "../redact.js";
 import { APIError, NotFoundError, RateLimitError } from "./errors.js";
 import type { RobinhoodSession } from "./session.js";
-import { getProxyUrl, trustedOrigins, UPSTREAM_API, UPSTREAM_NUMMUS } from "./urls.js";
-
-/**
- * Rewrite an upstream Robinhood URL to go through the local proxy.
- *
- * Robinhood API responses contain absolute URLs (e.g. instrument URLs,
- * pagination `next` links) that point at `api.robinhood.com`. When running
- * through the auth proxy those URLs need to be rewritten to the proxy origin
- * so the request goes through the proxy (and gets the Bearer header injected).
- *
- * If no proxy is configured, returns the URL unchanged.
- */
-export function proxyRewrite(url: string): string {
-  const proxy = getProxyUrl();
-  if (!proxy) return url;
-
-  if (url.startsWith(UPSTREAM_API)) {
-    return `${proxy}/rh${url.slice(UPSTREAM_API.length)}`;
-  }
-  if (url.startsWith(UPSTREAM_NUMMUS)) {
-    return `${proxy}/nummus${url.slice(UPSTREAM_NUMMUS.length)}`;
-  }
-  return url;
-}
+import { trustedOrigins } from "./urls.js";
 
 /** Reject URLs that point outside trusted Robinhood domains. */
 function assertTrustedUrl(url: string): void {
@@ -76,9 +53,8 @@ export async function requestGet(
     const results = [...((data.results as unknown[]) ?? [])];
     let nextUrl = data.next as string | null;
     while (nextUrl) {
-      const rewritten = proxyRewrite(nextUrl);
-      assertTrustedUrl(rewritten);
-      const resp = await session.get(rewritten);
+      assertTrustedUrl(nextUrl);
+      const resp = await session.get(nextUrl);
       await raiseForStatus(resp);
       const page = (await resp.json()) as Record<string, unknown>;
       results.push(...((page.results as unknown[]) ?? []));

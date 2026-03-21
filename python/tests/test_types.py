@@ -103,5 +103,5 @@ class TestHoldingModel:
 
 class TestLoginResult:
     def test_parse(self) -> None:
-        r = LoginResult(status="logged_in", method="proxy")
+        r = LoginResult(status="logged_in", method="keychain")
         assert r.status == "logged_in"

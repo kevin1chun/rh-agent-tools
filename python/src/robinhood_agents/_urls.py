@@ -1,66 +1,24 @@
 """URL builders for Robinhood API endpoints.
 
-When an auth proxy is configured (via ROBINHOOD_API_PROXY env or
-configure_proxy()), the mutable API_BASE and NUMMUS_BASE point at the
-proxy's path-prefix routes instead of the upstream origins.
+API_BASE and NUMMUS_BASE are constants — the client talks directly
+to Robinhood with Bearer auth injected by the session layer.
 """
 
-import os
 import re
-from urllib.parse import urlparse
 
-# Mutable — points at the proxy when one is configured.
 API_BASE = "https://api.robinhood.com"
 NUMMUS_BASE = "https://nummus.robinhood.com"
-
-# The original Robinhood origins (never change).
-UPSTREAM_API = "https://api.robinhood.com"
-UPSTREAM_NUMMUS = "https://nummus.robinhood.com"
-
-_proxy_url: str | None = None
-_proxy_token: str | None = None
 
 _SAFE_PATH_SEGMENT = re.compile(r"^[a-zA-Z0-9_.:@-]+$")
 
 
-def configure_proxy(url: str, token: str | None = None) -> None:
-    """Point all URL builders at the auth proxy."""
-    global API_BASE, NUMMUS_BASE, _proxy_url, _proxy_token
-    base = url.rstrip("/")
-    _proxy_url = base
-    _proxy_token = token
-    API_BASE = f"{base}/rh"
-    NUMMUS_BASE = f"{base}/nummus"
-
-
-def get_proxy_url() -> str | None:
-    """Return the configured proxy URL, or None if none."""
-    return _proxy_url
-
-
-def get_proxy_token() -> str | None:
-    """Return the proxy shared secret, or None if none."""
-    return _proxy_token
-
-
-def trusted_origins() -> set[str]:
-    """Build the set of trusted origins dynamically so it includes the proxy."""
-    origins = {
-        urlparse(UPSTREAM_API).scheme + "://" + urlparse(UPSTREAM_API).netloc,
-        urlparse(UPSTREAM_NUMMUS).scheme + "://" + urlparse(UPSTREAM_NUMMUS).netloc,
+def trusted_origins() -> frozenset[str]:
+    """Trusted Robinhood origins for redirect safety."""
+    return frozenset({
+        "https://api.robinhood.com",
+        "https://nummus.robinhood.com",
         "https://robinhood.com",
-    }
-    if _proxy_url:
-        parsed = urlparse(_proxy_url)
-        origins.add(f"{parsed.scheme}://{parsed.netloc}")
-    for base in (API_BASE, NUMMUS_BASE):
-        try:
-            parsed = urlparse(base)
-            if parsed.netloc:
-                origins.add(f"{parsed.scheme}://{parsed.netloc}")
-        except Exception:
-            pass
-    return origins
+    })
 
 
 def _safe_segment(value: str, label: str) -> str:
@@ -339,17 +297,3 @@ def top_movers() -> str:
 
 def top_100() -> str:
     return f"{API_BASE}/midlands/tags/tag/100-most-popular/"
-
-
-# ---------------------------------------------------------------------------
-# Auto-configure from env at module load
-# ---------------------------------------------------------------------------
-
-_env_proxy = os.environ.get("ROBINHOOD_API_PROXY", "").strip().rstrip("/")
-if _env_proxy:
-    _env_token = os.environ.get("ROBINHOOD_PROXY_TOKEN", "").strip() or None
-    if not _env_token:
-        from ._token_store import load_proxy_token
-
-        _env_token = load_proxy_token()
-    configure_proxy(_env_proxy, _env_token)

@@ -8,27 +8,7 @@ from ._errors import APIError, NotFoundError, RateLimitError
 from ._redact import redact_tokens, scrub_sensitive_keys
 from ._session import Session
 from ._types import DataType
-from ._urls import UPSTREAM_API, UPSTREAM_NUMMUS, get_proxy_url, trusted_origins
-
-
-def proxy_rewrite(url: str) -> str:
-    """Rewrite an upstream Robinhood URL to go through the local proxy.
-
-    Robinhood API responses contain absolute URLs (e.g. instrument URLs,
-    pagination ``next`` links) that point at ``api.robinhood.com``.  When
-    running through the auth proxy those URLs need to be rewritten so the
-    request goes through the proxy (and gets the Bearer header injected).
-
-    If no proxy is configured, returns the URL unchanged.
-    """
-    proxy = get_proxy_url()
-    if not proxy:
-        return url
-    if url.startswith(UPSTREAM_API):
-        return f"{proxy}/rh{url[len(UPSTREAM_API) :]}"
-    if url.startswith(UPSTREAM_NUMMUS):
-        return f"{proxy}/nummus{url[len(UPSTREAM_NUMMUS) :]}"
-    return url
+from ._urls import trusted_origins
 
 
 def _assert_trusted_url(url: str) -> None:
@@ -65,9 +45,8 @@ async def request_get(
         results = list(data.get("results", []))
         next_url: str | None = data.get("next")
         while next_url:
-            rewritten = proxy_rewrite(next_url)
-            _assert_trusted_url(rewritten)
-            resp = await session.get(rewritten)
+            _assert_trusted_url(next_url)
+            resp = await session.get(next_url)
             await _raise_for_status(resp)
             page: dict[str, Any] = resp.json()
             results.extend(page.get("results", []))

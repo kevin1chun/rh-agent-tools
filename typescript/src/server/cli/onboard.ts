@@ -167,17 +167,17 @@ export async function onboard(preselectedAgent?: AgentId): Promise<void> {
 
   if (tokensAvailable) {
     const deployment = await p.select({
-      message: "Where will the agent run?",
+      message: "Where is your agent running?",
       options: [
         {
           value: "local" as const,
-          label: "This machine",
-          hint: "proxy starts automatically",
+          label: "This machine (local)",
+          hint: "tokens in OS keychain — ready to go",
         },
         {
           value: "docker" as const,
-          label: "Docker / remote",
-          hint: "shows commands to copy-paste",
+          label: "Docker container / remote host",
+          hint: "exports encrypted tokens",
         },
       ],
     });
@@ -188,9 +188,9 @@ export async function onboard(preselectedAgent?: AgentId): Promise<void> {
     }
 
     if (deployment === "docker") {
-      await showDockerInstructions(binPath);
+      await exportEncryptedTokens();
     } else {
-      await startLocalProxy(binPath);
+      p.log.success("Tokens are stored in the OS keychain. Ready to use.");
     }
   }
 
@@ -202,131 +202,49 @@ export async function onboard(preselectedAgent?: AgentId): Promise<void> {
 // Deployment helpers
 // ---------------------------------------------------------------------------
 
-async function startLocalProxy(binPath: string): Promise<void> {
-  let proxyAlreadyRunning = false;
-  try {
-    const resp = await fetch("http://127.0.0.1:3100/health", {
-      signal: AbortSignal.timeout(1000),
-    });
-    proxyAlreadyRunning = resp.ok;
-  } catch {
-    // Not running
+async function exportEncryptedTokens(): Promise<void> {
+  const { EncryptedFileTokenStore, KeychainTokenStore } = await import(
+    "../../client/token-store.js"
+  );
+
+  const spinner = p.spinner();
+  spinner.start("Encrypting tokens...");
+
+  const keychain = new KeychainTokenStore();
+  const tokens = await keychain.load();
+  if (!tokens) {
+    spinner.stop("No tokens found in keychain.");
+    return;
   }
 
-  if (proxyAlreadyRunning) {
-    const restart = await p.confirm({
-      message: "Auth proxy already running on :3100. Restart it?",
-      initialValue: false,
-    });
+  const outputPath = "./tokens.enc";
+  const store = new EncryptedFileTokenStore(outputPath);
+  await store.save(tokens);
 
-    if (p.isCancel(restart) || !restart) return;
-
+  // Read back the encryption key
+  let encKey = process.env.ROBINHOOD_TOKEN_KEY?.trim() ?? "";
+  if (!encKey) {
     try {
-      const lsof = Bun.spawnSync(["lsof", "-ti", "tcp:3100"]);
-      const pids = new TextDecoder().decode(lsof.stdout).trim();
-      if (pids) {
-        for (const pid of pids.split("\n")) {
-          process.kill(Number(pid), "SIGTERM");
-        }
-        await Bun.sleep(500);
-      }
+      encKey = (await Bun.secrets.get("robinhood-for-agents", "encryption-key")) ?? "";
     } catch {
-      // Best effort
+      // Keychain unavailable
     }
   }
 
-  const proxySpinner = p.spinner();
-  proxySpinner.start(proxyAlreadyRunning ? "Restarting auth proxy..." : "Starting auth proxy...");
+  spinner.stop(`Tokens encrypted to ${outputPath}`);
 
-  const proc = Bun.spawn(["bun", "run", binPath, "proxy"], {
-    stdio: ["ignore", "ignore", "ignore"],
-  });
-  proc.unref();
-
-  let started = false;
-  for (let i = 0; i < 5; i++) {
-    await Bun.sleep(200);
-    try {
-      const resp = await fetch("http://127.0.0.1:3100/health", {
-        signal: AbortSignal.timeout(1000),
-      });
-      if (resp.ok) {
-        started = true;
-        break;
-      }
-    } catch {
-      // Not ready yet
-    }
-  }
-
-  if (started) {
-    proxySpinner.stop(
-      proxyAlreadyRunning
-        ? "Auth proxy restarted on :3100 (background)."
-        : "Auth proxy started on :3100 (background).",
-    );
-  } else {
-    proxySpinner.stop("Could not start auth proxy.");
-    p.log.warn("Run `robinhood-for-agents proxy` manually if needed.");
-  }
-}
-
-async function showDockerInstructions(binPath: string): Promise<void> {
-  const proxyToken = crypto.randomUUID();
-
-  p.log.step("Start the auth proxy on this machine (the host):");
-  p.log.message(`  export ROBINHOOD_PROXY_TOKEN="${proxyToken}"\n  bun run ${binPath} proxy`);
+  p.log.step("Your encryption key:");
+  p.log.message(`  ${encKey}`);
 
   p.log.step("Set these env vars in your container:");
+  p.log.message(`  ROBINHOOD_TOKENS_FILE=/app/tokens.enc\n  ROBINHOOD_TOKEN_KEY=${encKey}`);
+
+  p.log.step("docker-compose.yml example:");
   p.log.message(
-    `  ROBINHOOD_API_PROXY=http://host.docker.internal:3100\n  ROBINHOOD_PROXY_TOKEN=${proxyToken}`,
+    `  services:\n    agent:\n      volumes:\n        - ./tokens.enc:/app/tokens.enc:rw\n      environment:\n        ROBINHOOD_TOKENS_FILE: "/app/tokens.enc"\n        ROBINHOOD_TOKEN_KEY: "${encKey}"`,
   );
 
-  p.log.step("Or add to docker-compose.yml:");
-  p.log.message(
-    `  environment:\n    ROBINHOOD_API_PROXY: "http://host.docker.internal:3100"\n    ROBINHOOD_PROXY_TOKEN: "${proxyToken}"`,
-  );
-
-  const startNow = await p.confirm({
-    message: "Start the auth proxy now?",
-    initialValue: true,
-  });
-
-  if (!p.isCancel(startNow) && startNow) {
-    const proxySpinner = p.spinner();
-    proxySpinner.start("Starting auth proxy...");
-
-    const proc = Bun.spawn(["bun", "run", binPath, "proxy"], {
-      stdio: ["ignore", "ignore", "ignore"],
-      env: { ...process.env, ROBINHOOD_PROXY_TOKEN: proxyToken },
-    });
-    proc.unref();
-
-    let started = false;
-    for (let i = 0; i < 5; i++) {
-      await Bun.sleep(200);
-      try {
-        const resp = await fetch("http://127.0.0.1:3100/health", {
-          signal: AbortSignal.timeout(1000),
-        });
-        if (resp.ok) {
-          started = true;
-          break;
-        }
-      } catch {
-        // Not ready yet
-      }
-    }
-
-    if (started) {
-      proxySpinner.stop("Auth proxy started on :3100 (background).");
-    } else {
-      proxySpinner.stop("Could not start auth proxy.");
-      p.log.warn("Start it manually with the commands above.");
-    }
-  }
-
-  p.log.info(
-    "The proxy token above is required — without it, the container gets 403 on every API call.",
+  p.log.warn(
+    "Security: Only run agents you trust. A rogue agent with shell access can read the\nenv var and decrypt the tokens. See docs/SECURITY.md for details.",
   );
 }

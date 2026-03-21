@@ -66,7 +66,7 @@ class _Base(BaseModel):
 
 class LoginResult(_Base):
     status: Literal["logged_in"]
-    method: Literal["proxy"]
+    method: Literal["keychain", "encrypted_file", "token"]
 
 
 # ---------------------------------------------------------------------------

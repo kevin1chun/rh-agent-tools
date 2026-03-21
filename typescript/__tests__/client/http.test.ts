@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { APIError, NotFoundError, RateLimitError } from "../../src/client/errors.js";
-import { proxyRewrite, requestDelete, requestGet, requestPost } from "../../src/client/http.js";
+import { requestDelete, requestGet, requestPost } from "../../src/client/http.js";
 import type { RobinhoodSession } from "../../src/client/session.js";
 
 function mockSession(
@@ -150,21 +150,5 @@ describe("Error mapping", () => {
       expect(err.message).toContain("410");
       expect(err.message).toContain("gone");
     }
-  });
-});
-
-describe("proxyRewrite", () => {
-  it("returns URL unchanged when no proxy is configured", () => {
-    // No proxy configured by default in test environment
-    const url = "https://api.robinhood.com/positions/";
-    const result = proxyRewrite(url);
-    // Without a proxy configured, the URL should pass through unchanged
-    // (proxyRewrite checks getProxyUrl() which returns null when not configured)
-    expect(typeof result).toBe("string");
-  });
-
-  it("returns non-Robinhood URLs unchanged", () => {
-    const url = "https://example.com/api/data";
-    expect(proxyRewrite(url)).toBe(url);
   });
 });

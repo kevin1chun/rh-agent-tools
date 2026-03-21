@@ -5,11 +5,16 @@
  * Multi-account is first-class: account-scoped methods accept `accountNumber`.
  */
 
-import type { LoginResult } from "./auth.js";
-import { logout as logoutFn, restoreSession as restoreSessionFn } from "./auth.js";
+import type { AuthState, LoginResult } from "./auth.js";
+import {
+  logout as logoutFn,
+  restoreSession as restoreSessionFn,
+  restoreSessionFromToken,
+} from "./auth.js";
 import { NotFoundError, NotLoggedInError } from "./errors.js";
-import { proxyRewrite, requestGet, requestPost } from "./http.js";
+import { requestGet, requestPost } from "./http.js";
 import { createSession, type RobinhoodSession } from "./session.js";
+import { createTokenStore, type TokenStore } from "./token-store.js";
 import type {
   Account,
   CryptoOrder,
@@ -46,11 +51,20 @@ const MULTI_ACCOUNT_PARAMS: Record<string, string> = {
 
 export class RobinhoodClient {
   private session: RobinhoodSession;
+  private tokenStore: TokenStore;
+  private authState: AuthState | null = null;
   private _loggedIn = false;
   private _indexCache: Map<string, IndexInstrument> | null = null;
 
-  constructor(opts?: { timeoutMs?: number }) {
+  constructor(opts?: { tokenStore?: TokenStore; accessToken?: string; timeoutMs?: number }) {
     this.session = createSession(opts);
+    this.tokenStore = opts?.tokenStore ?? createTokenStore();
+
+    // Direct access token — no store, no refresh
+    if (opts?.accessToken) {
+      restoreSessionFromToken(this.session, opts.accessToken);
+      this._loggedIn = true;
+    }
   }
 
   get isLoggedIn(): boolean {
@@ -62,13 +76,15 @@ export class RobinhoodClient {
   // ---------------------------------------------------------------------------
 
   async restoreSession(): Promise<LoginResult> {
-    const result = await restoreSessionFn(this.session);
+    const { result, state } = await restoreSessionFn(this.session, this.tokenStore);
+    this.authState = state;
     this._loggedIn = true;
     return result;
   }
 
   async logout(): Promise<void> {
-    await logoutFn(this.session);
+    await logoutFn(this.session, this.authState);
+    this.authState = null;
     this._loggedIn = false;
   }
 
@@ -149,11 +165,10 @@ export class RobinhoodClient {
 
   async getInstrumentByUrl(url: string): Promise<Instrument> {
     this.requireAuth();
-    const rewritten = proxyRewrite(url);
-    if (!rewritten.startsWith(urls.API_BASE)) {
+    if (!url.startsWith(urls.API_BASE)) {
       throw new Error(`Refusing to fetch instrument from untrusted URL: ${url}`);
     }
-    return (await requestGet(this.session, rewritten)) as Instrument;
+    return (await requestGet(this.session, url)) as Instrument;
   }
 
   async buildHoldings(opts?: {

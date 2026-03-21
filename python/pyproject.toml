@@ -23,6 +23,7 @@ dependencies = [
     "httpx>=0.27,<1",
     "pydantic>=2.5,<3",
     "keyring>=25,<27",
+    "cryptography>=43,<45",
 ]
 
 [project.optional-dependencies]

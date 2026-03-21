@@ -8,13 +8,10 @@ from robinhood_agents._urls import (
     cancel_crypto_order,
     cancel_option_order,
     cancel_stock_order,
-    configure_proxy,
     crypto_currency_pairs,
     crypto_holdings,
     crypto_orders,
     fundamental,
-    get_proxy_token,
-    get_proxy_url,
     market_hours,
     news,
     oauth_revoke,
@@ -65,22 +62,3 @@ class TestUrlBuilders:
         assert "XNYS" in market_hours("XNYS", "2024-01-15")
         with pytest.raises(ValueError, match="Invalid market"):
             market_hours("../bad", "2024-01-15")
-
-
-class TestProxyConfiguration:
-    def test_configure_proxy(self) -> None:
-        import robinhood_agents._urls as urls_mod
-
-        old_api = urls_mod.API_BASE
-        old_nummus = urls_mod.NUMMUS_BASE
-        try:
-            configure_proxy("http://localhost:8080", "secret")
-            assert get_proxy_url() == "http://localhost:8080"
-            assert get_proxy_token() == "secret"
-            assert urls_mod.API_BASE == "http://localhost:8080/rh"
-            assert urls_mod.NUMMUS_BASE == "http://localhost:8080/nummus"
-        finally:
-            urls_mod.API_BASE = old_api
-            urls_mod.NUMMUS_BASE = old_nummus
-            urls_mod._proxy_url = None
-            urls_mod._proxy_token = None

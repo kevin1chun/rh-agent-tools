@@ -22,41 +22,20 @@
 │   │      TypeScript client (src/client/)      │                 │
 │   │  ┌─────────────────────────────────────┐  │                 │
 │   │  │  session: RobinhoodSession (fetch)  │  │                 │
-│   │  │  auth.ts  ──► ensureProxy()         │  │                 │
+│   │  │  auth.ts  ──► TokenStore + refresh  │  │                 │
 │   │  │  http.ts  ──► get/post/delete+paging│  │                 │
-│   │  │  urls.ts  ──► proxy-aware builders  │  │                 │
+│   │  │  urls.ts  ──► const URL builders    │  │                 │
 │   │  └─────────────────────────────────────┘  │                 │
 │   └──────────────────┬────────────────────────┘                 │
 │                      │                                          │
-│   ┌───────────────────────────────────────────┐                 │
-│   │      Python client (robinhood_agents)     │                 │
-│   │  ┌─────────────────────────────────────┐  │                 │
-│   │  │  session: Session (httpx)           │  │                 │
-│   │  │  _auth.py ──► auto-discover proxy   │  │                 │
-│   │  │  _http.py ──► get/post/delete+paging│  │                 │
-│   │  │  _urls.py ──► proxy-aware builders  │  │                 │
-│   │  └─────────────────────────────────────┘  │                 │
-│   └──────────────────┬────────────────────────┘                 │
-│                      │                                          │
-│                      ▼                                          │
-│   ┌───────────────────────────────────────────┐                 │
-│   │      Auth Proxy (127.0.0.1:3100)          │                 │
-│   │                                           │                 │
-│   │  /rh/*     → api.robinhood.com            │                 │
-│   │  /nummus/* → nummus.robinhood.com         │                 │
-│   │                                           │                 │
-│   │  Injects Bearer token from OS keychain    │                 │
-│   │  Handles token refresh on 401             │                 │
-│   │  Strips auth from responses               │                 │
-│   └──────────────────┬────────────────────────┘                 │
-│                      │                                          │
+│                      │  Authorization: Bearer <token>           │
 │                      ▼                                          │
 │            api.robinhood.com                                    │
 │            nummus.robinhood.com (crypto)                        │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Polyglot monorepo.** `typescript/src/client/` is the TypeScript API client. `typescript/src/server/` is the MCP server that wraps it. `typescript/src/server/proxy.ts` is the auth proxy that sits between both clients and Robinhood APIs. `python/src/robinhood_agents/` is the Python API client (async-only, proxy-mediated).
+**Polyglot monorepo.** `typescript/src/client/` is the TypeScript API client. `typescript/src/server/` is the MCP server that wraps it. `python/src/robinhood_agents/` is the Python API client (async-only). Both SDKs talk directly to Robinhood APIs with Bearer auth -- no intermediate proxy.
 
 ## Tech Stack
 
@@ -77,25 +56,26 @@
 src/client/                    <- robinhood-for-agents client library
 ├── index.ts                   <- Exports: RobinhoodClient, getClient(), login()
 ├── client.ts                  <- RobinhoodClient class (~50 async methods)
-├── auth.ts                    <- Proxy-based auth: ensureProxy() + /reload-tokens
-├── token-store.ts             <- Token storage via OS keychain (Bun.secrets)
-├── session.ts                 <- fetch wrapper (headers, timeouts, redirect safety)
-├── http.ts                    <- GET/POST/DELETE with pagination + proxyRewrite
-├── urls.ts                    <- Proxy-aware URL builders (configureProxy, getProxyUrl)
+├── auth.ts                    <- Direct auth: TokenStore load, Bearer injection, 401 refresh
+├── token-store.ts             <- TokenStore interface + KeychainTokenStore + EncryptedFileTokenStore
+├── session.ts                 <- fetch wrapper (Bearer injection, 401 retry, redirect safety)
+├── http.ts                    <- GET/POST/DELETE with pagination + trusted-origin validation
+├── urls.ts                    <- Const URL builders (API_BASE, NUMMUS_BASE)
 ├── errors.ts                  <- Exception hierarchy
 ├── types.ts                   <- Zod schemas + inferred types
 └── branded.ts                 <- AccountNumber, OrderId, etc. branded types
 
-src/server/                    <- robinhood-for-agents MCP server + auth proxy
-├── index.ts                   <- main() export, ensureProxy + StdioServerTransport
+src/server/                    <- robinhood-for-agents MCP server
+├── index.ts                   <- main() export, StdioServerTransport
 ├── server.ts                  <- McpServer creation + tool registration
-├── proxy.ts                   <- Auth proxy: token injection, refresh, routing
 ├── browser-auth.ts            <- Playwright browser login capture
 ├── cli/
-│   ├── proxy-cmd.ts          <- CLI handler for `proxy` subcommand
 │   ├── onboard.ts            <- Interactive setup TUI
+│   ├── docker-setup.ts       <- Docker deployment setup
 │   ├── install-mcp.ts        <- Install MCP server config
-│   └── install-skills.ts     <- Install Claude Code skills
+│   ├── install-skills.ts     <- Install Claude Code skills
+│   ├── detect.ts             <- Agent detection
+│   └── agents/               <- Agent-specific config generators
 └── tools/
     ├── auth.ts               <- robinhood_browser_login, robinhood_check_session
     ├── portfolio.ts          <- robinhood_get_portfolio, _get_accounts, _get_account
@@ -108,33 +88,44 @@ src/server/                    <- robinhood-for-agents MCP server + auth proxy
 
 ## Authentication
 
-### Auth Proxy Architecture
+### TokenStore Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                                                                         │
-│  restoreSession()                                                       │
-│  (every tool call)                                                      │
+│  restoreSession(session, store)                                        │
+│  (every tool call)                                                     │
 │          │                                                              │
 │          ▼                                                              │
-│  ensureProxy()                                                          │
-│  ├── ROBINHOOD_API_PROXY set? → health-check, read ROBINHOOD_PROXY_TOKEN│
-│  ├── Already running in-process? → reuse (token in memory)             │
-│  ├── Port 3100 already listening? → adopt + read proxy token from      │
-│  │                                  keychain                            │
-│  └── Otherwise → startProxy(127.0.0.1:3100)                           │
+│  store.load() → TokenData | null                                       │
+│          │                                                              │
+│          ├── KeychainTokenStore (default)                               │
+│          │   Bun.secrets.get("robinhood-for-agents", "session-tokens") │
+│          │                                                              │
+│          ├── EncryptedFileTokenStore (ROBINHOOD_TOKENS_FILE set)       │
+│          │   AES-256-GCM decrypt from ~/.robinhood-for-agents/tokens.enc│
+│          │                                                              │
+│          └── null → AuthenticationError("No tokens found")             │
 │          │                                                              │
 │          ▼                                                              │
-│  configureProxy(url, token)                                             │
-│  API_BASE = "http://127.0.0.1:3100/rh"                                │
-│  NUMMUS_BASE = "http://127.0.0.1:3100/nummus"                         │
+│  session.setAccessToken(tokens.access_token)                           │
+│  session.onUnauthorized = refreshCallback(state)                       │
 │          │                                                              │
 │          ▼                                                              │
-│  POST /reload-tokens (picks up browser login changes)                  │
-│  return { status: "logged_in", method: "proxy" }                       │
+│  return { status: "logged_in", method: "keychain" | "encrypted_file" }│
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
+
+The client constructor accepts `tokenStore` to override the default, or `accessToken` for direct token injection (no store, no refresh).
+
+```typescript
+new RobinhoodClient()                          // auto-detect store
+new RobinhoodClient({ tokenStore: myStore })   // custom store
+new RobinhoodClient({ accessToken: "xxx" })    // direct token, no refresh
+```
+
+Auto-detection (`createTokenStore()`): if `ROBINHOOD_TOKENS_FILE` is set, uses `EncryptedFileTokenStore`; otherwise uses `KeychainTokenStore`.
 
 ### Browser Login Flow
 
@@ -181,8 +172,7 @@ src/server/                    <- robinhood-for-agents MCP server + auth proxy
 │           │       (tokens never written to disk)                        │
 │           │                                                              │
 │           ▼                                                              │
-│  POST /reload-tokens on proxy ──► proxy picks up new tokens            │
-│  Close browser                                                          │
+│  Close browser, return tokens to caller                                │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -199,75 +189,62 @@ This design is resilient to Robinhood UI changes -- it doesn't depend on any DOM
 ```
 ┌─ token-store.ts ──────────────────────────────────────────────────┐
 │                                                                    │
-│  SAVE                                                              │
-│  ────                                                              │
+│  INTERFACE                                                         │
+│  ─────────                                                         │
+│  TokenStore { load(), save(), delete() }                          │
+│                                                                    │
+│  ADAPTERS                                                          │
+│  ────────                                                          │
+│                                                                    │
+│  1. KeychainTokenStore (default)                                  │
+│     ├── load:  Bun.secrets.get("robinhood-for-agents",            │
+│     │          "session-tokens") → JSON.parse → TokenData         │
+│     ├── save:  Bun.secrets.set(..., JSON.stringify(tokens))       │
+│     └── delete: Bun.secrets.delete(...)                           │
+│     Storage: OS keychain (macOS Keychain Services, Linux          │
+│     libsecret). Never touches the filesystem.                     │
+│                                                                    │
+│  2. EncryptedFileTokenStore (ROBINHOOD_TOKENS_FILE set)           │
+│     ├── load:  readFile → JSON.parse → AES-256-GCM decrypt       │
+│     ├── save:  AES-256-GCM encrypt → writeFile                   │
+│     └── delete: unlink                                            │
+│     File: ~/.robinhood-for-agents/tokens.enc (default)            │
+│     Key resolution:                                               │
+│       1. ROBINHOOD_TOKEN_KEY env var (base64)                     │
+│       2. Keychain ("encryption-key" entry)                        │
+│       3. Generate random key → store in keychain                  │
+│     Use case: Docker, headless servers, CI — no OS keychain.      │
+│                                                                    │
 │  TokenData (JSON):                                                 │
-│  {access_token, refresh_token, token_type, device_token, saved_at} │
-│         │                                                          │
-│         ▼                                                          │
-│  JSON.stringify()                                                  │
-│         │                                                          │
-│         ▼                                                          │
-│  Bun.secrets.set("robinhood-for-agents", "session-tokens", json)  │
-│  → OS encrypts and stores in keychain                              │
-│  → No file written to disk                                         │
-│                                                                    │
-│                                                                    │
-│  LOAD                                                              │
-│  ────                                                              │
-│  Bun.secrets.get("robinhood-for-agents", "session-tokens")        │
-│         │                                                          │
-│         ▼                                                          │
-│  JSON.parse() → TokenData                                          │
-│                                                                    │
-│                                                                    │
-│  STORAGE                                                           │
-│  ───────                                                           │
-│  OS Keychain via Bun.secrets                                       │
-│  ├── macOS: Keychain Services                                      │
-│  ├── Linux: libsecret (GNOME Keyring, KWallet)                    │
-│  └── Windows: Credential Manager                                   │
-│                                                                    │
-│  Keychain entries:                                                 │
-│  ├── "session-tokens" — RH OAuth tokens (access, refresh, device) │
-│  └── "proxy-token"    — proxy access control shared secret         │
-│  Neither ever touches the filesystem.                              │
+│  {access_token, refresh_token, token_type, device_token, saved_at}│
 │                                                                    │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-`Bun.secrets` stores tokens directly in the OS keychain -- no intermediate encryption layer needed since the keychain itself provides encryption, access control, and tamper resistance.
-
-### Proxy Request Flow
+### Request Flow (Direct Auth)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                                                                         │
-│  Client: GET /rh/positions/?nonzero=true                               │
-│          + X-Proxy-Token: <shared-secret>                              │
+│  Client: GET https://api.robinhood.com/positions/?nonzero=true         │
+│          + Authorization: Bearer <access_token>                        │
 │         │                                                               │
 │         ▼                                                               │
-│  Proxy: validate X-Proxy-Token header (403 if missing/invalid)        │
+│  session.get(url, params)                                              │
+│         ├── authHeaders(): inject Authorization: Bearer <token>        │
+│         ├── safeFetch(): manual redirect following (trusted origins)   │
 │         │                                                               │
 │         ▼                                                               │
-│  Proxy: resolveUpstream("/rh/positions/")                              │
-│         → { upstream: "https://api.robinhood.com", path: "/positions/"}│
+│  Robinhood response: 200 / 401                                        │
 │         │                                                               │
-│         ▼                                                               │
-│  Proxy: forwardRequest()                                               │
-│         ├── Allowlist client headers (accept, content-type, user-agent) │
-│         ├── Inject: Authorization: Bearer <access_token>               │
-│         ├── Forward to: https://api.robinhood.com/positions/?nonzero=..│
+│         ├── 200 → return response to http.ts for data processing      │
 │         │                                                               │
-│         ▼                                                               │
-│  Upstream response: 200 / 401                                          │
-│         │                                                               │
-│         ├── 200 → strip auth headers from response → return to client  │
-│         │                                                               │
-│         └── 401 → refreshTokens() → retry forwardRequest()            │
+│         └── 401 → fetchWithRetry() calls onUnauthorized()             │
 │                    ├── POST /oauth2/token/ (refresh_token grant)       │
-│                    ├── Update state.tokens + saveTokens()              │
-│                    └── Retry original request with new token           │
+│                    ├── Update state.tokens + store.save(newTokens)     │
+│                    ├── session.accessToken = newToken                   │
+│                    └── Retry original request with new Bearer token    │
+│                    (concurrent 401s share a single refresh attempt)    │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -286,8 +263,9 @@ http.requestGet(session, url, { dataType, params })
 session.get(url, params)                <- native fetch
     │
     ├── Headers: Accept, Content-Type, X-Robinhood-API-Version: 1.431.4
-    ├── No auth header (proxy injects it)
+    ├── Authorization: Bearer <access_token> (injected by session)
     ├── Timeout: AbortSignal.timeout(16000)
+    ├── Redirect: manual (safeFetch validates trusted origins)
     │
     ▼
 raiseForStatus(response)
@@ -300,8 +278,10 @@ dataType processing:
     ├── "regular"    -> return response.json()
     ├── "results"    -> return data.results
     ├── "indexzero"  -> return data.results[0]
-    └── "pagination" -> proxyRewrite(next), follow links, accumulate results
+    └── "pagination" -> assertTrustedUrl(next), follow links, accumulate results
 ```
+
+Pagination URLs returned by Robinhood point directly to `api.robinhood.com` -- no URL rewriting needed. The `assertTrustedUrl()` check ensures pagination never follows links to untrusted domains.
 
 ### Exception Hierarchy
 
@@ -422,11 +402,14 @@ Market buy orders include a 5% price collar (`preset_percent_limit: "0.05"`).
 
 | Decision | Why |
 |---|---|
-| **Auth proxy** | Single point of token access. Client never touches tokens directly. Enables Docker isolation. |
+| **TokenStore adapters** | Pluggable token storage. KeychainTokenStore for desktop, EncryptedFileTokenStore for Docker/headless. Client never hard-codes a storage strategy. |
+| **Direct Bearer auth** | Session injects `Authorization: Bearer` directly on every request. No proxy, no URL rewriting, no shared secret. Simpler, fewer moving parts. |
+| **401 retry in session** | `onUnauthorized` callback refreshes the token and retries once. Concurrent 401s coalesce into a single refresh. |
+| **Const URL builders** | `API_BASE` and `NUMMUS_BASE` are `const` -- no mutable state, no `configureProxy()`. All URLs point to Robinhood directly. |
 | **Bun + native fetch** | Zero deps for HTTP, native TS execution, fast startup |
 | **Class-based over module globals** | Instance-scoped session prevents shared mutable state. Testable. |
-| **Bun.secrets for token storage** | Tokens stored directly in OS keychain -- no files on disk, no custom encryption layer. Zero deps. |
-| **Proxy-aware URL builders** | `configureProxy()` rewrites API_BASE/NUMMUS_BASE so all URL builders route through proxy automatically |
+| **Bun.secrets for keychain** | Tokens stored directly in OS keychain -- no files on disk, no custom encryption layer. Zero deps. |
+| **EncryptedFileTokenStore for Docker** | AES-256-GCM encrypted file with key in env var or keychain. No need for an auth proxy sidecar. |
 | **No phoenix.robinhood.com** | TLS handshake fails. `api.robinhood.com` has equivalent data. |
 | **Unified order methods** | `orderStock()` with optional params vs 10 separate `orderBuyMarket()` etc. |
 | **Vitest over bun test** | Proper module isolation via worker processes. Critical for mocking. |

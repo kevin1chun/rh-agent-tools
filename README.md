@@ -5,12 +5,12 @@
 [![ClawHub](https://img.shields.io/badge/ClawHub-robinhood--for--agents-blue)](https://clawhub.ai/kevin1chun/robinhood-for-agents)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Robinhood for AI agents — polyglot monorepo with TypeScript + Python SDKs, an MCP server with 18 tools, and a local auth proxy.
+Robinhood for AI agents — polyglot monorepo with TypeScript + Python SDKs and an MCP server with 18 tools.
 
 - **18 MCP tools** for any MCP-compatible AI agent
 - **Unified trading skill** for guided workflows (Claude Code, OpenClaw, [ClawHub](https://clawhub.ai/kevin1chun/robinhood-for-agents))
 - **TypeScript + Python client libraries** (~50 async methods each) for programmatic use
-- **Auth proxy** — tokens stay in the OS keychain, never exposed to the agent
+- **Pluggable token storage** — OS keychain (default) or encrypted file (Docker/headless)
 
 Compatible with **Claude Code**, **Codex**, **OpenClaw**, and any MCP-compatible agent.
 
@@ -30,7 +30,7 @@ Compatible with **Claude Code**, **Codex**, **OpenClaw**, and any MCP-compatible
 npx robinhood-for-agents onboard
 ```
 
-The interactive setup detects your agent, registers the MCP server, installs skills (where supported), walks you through Robinhood login, and configures the auth proxy. It handles both local and Docker deployments — just pick "This machine" or "Docker / remote" when prompted.
+The interactive setup detects your agent, registers the MCP server, installs skills (where supported), and walks you through Robinhood login. It handles both local and Docker deployments — just pick "This machine" or "Docker container / remote host" when prompted.
 
 You can also specify your agent directly:
 
@@ -188,68 +188,53 @@ const quotes = await client.getQuotes("AAPL");
 const portfolio = await client.buildHoldings();
 ```
 
-## Docker Deployment
+## Docker / Headless Deployment
 
-When deploying an agent in Docker (OpenClaw, custom agents, etc.), the container cannot access the host OS keychain. An **auth proxy** on the host bridges this gap — it holds tokens in the keychain and injects auth headers into requests from the container. No tokens, keys, or credentials enter the container.
-
-```
-┌─── Host ──────────────────────┐    ┌─── Container ──────────────┐
-│                               │    │                            │
-│ Keychain: has tokens          │    │ Keychain: empty            │
-│ Proxy: listens on :3100      │◄───│ Client: talks to proxy     │
-│                               │    │                            │
-│ Proxy receives request        │    │ No tokens on filesystem    │
-│ → validates proxy token       │    │ No RH tokens in env vars   │
-│ → injects Bearer header       │    │                            │
-│ → forwards to Robinhood API   │    │                            │
-│ → returns response            │    │                            │
-└───────────────────────────────┘    └────────────────────────────┘
-```
+When deploying in Docker, headless servers, or cloud environments where no OS keychain is available, use the `EncryptedFileTokenStore`:
 
 ### Setup
 
-The guided setup handles Docker — just pick "Docker / remote" when prompted:
+The guided setup handles Docker — pick "Docker container / remote host" when prompted:
 
 ```bash
 npx robinhood-for-agents onboard
 ```
 
-It will log you in, generate a proxy token, print copy-paste commands for your container, and optionally start the proxy.
+This will:
+1. Open Chrome for Robinhood login (on the host)
+2. Encrypt tokens and export to `./tokens.enc`
+3. Print the encryption key and env vars to set in your container
 
-<details>
-<summary>Manual setup (without onboard)</summary>
+### Manual setup
 
 ```bash
-# 1. Login on the host (opens Chrome for Robinhood login)
-npx robinhood-for-agents onboard   # or: bun bin/robinhood-for-agents.ts onboard
+# 1. Login on the host
+npx robinhood-for-agents onboard
 
-# 2. Start the auth proxy with a known token
-export ROBINHOOD_PROXY_TOKEN="$(uuidgen)"
-npx robinhood-for-agents proxy --port 3100
-
-# 3. Verify
-curl http://localhost:3100/health   # {"status":"ok"}
+# 2. In your container, set env vars:
+export ROBINHOOD_TOKENS_FILE=/path/to/tokens.enc
+export ROBINHOOD_TOKEN_KEY=<base64-key-from-step-1>
 ```
 
 ```yaml
-# 4. docker-compose.yml
+# docker-compose.yml
 services:
   agent:
     image: your-agent-image
+    volumes:
+      - ./tokens.enc:/app/tokens.enc:rw
     environment:
-      ROBINHOOD_API_PROXY: "http://host.docker.internal:3100"
-      ROBINHOOD_PROXY_TOKEN: "${ROBINHOOD_PROXY_TOKEN}"
+      ROBINHOOD_TOKENS_FILE: "/app/tokens.enc"
+      ROBINHOOD_TOKEN_KEY: "${ROBINHOOD_TOKEN_KEY}"
 ```
-</details>
 
-> **Linux hosts**: Add `extra_hosts: ["host.docker.internal:host-gateway"]` to your Compose service.
+Token refresh writes re-encrypted tokens back to the file automatically.
 
-Kill the proxy on the host to instantly revoke all container access. See [docs/DOCKER.md](docs/DOCKER.md) for the full guide and [docs/SECURITY.md](docs/SECURITY.md) for the threat model.
+> **Security warning:** The encrypted file protects against casual disk access (image leaks, accidental exposure) but NOT against a malicious agent with shell access in the container — it can read the env var and decrypt. Only run agents you trust. See [docs/SECURITY.md](docs/SECURITY.md) for the full threat model.
 
 ## Safety
 
-- **Tokens are never exposed to the AI agent** — all API calls route through an auth proxy that injects Bearer tokens. The agent only sees tool results, never access tokens or credentials.
-- **Docker isolation** — tokens stay in the host keychain. Containers only get a proxy URL. See [SECURITY.md](docs/SECURITY.md) for attack scenarios.
+- **Pluggable token storage** — `KeychainTokenStore` (OS keychain, default) or `EncryptedFileTokenStore` (AES-256-GCM, for Docker/headless). See [SECURITY.md](docs/SECURITY.md) for the threat model.
 - Fund transfers and bank operations are **blocked** — never exposed
 - Bulk cancel operations are **blocked**
 - All order placements require explicit parameters (no dangerous defaults)
@@ -258,47 +243,32 @@ Kill the proxy on the host to instantly revoke all container access. See [docs/D
 
 ## Authentication
 
-All API requests route through a local **auth proxy** that injects Bearer tokens from the OS keychain. The client never handles tokens directly.
+**Login**: Call `robinhood_browser_login` (MCP) or say "setup robinhood" (skills) to open Chrome. Log in normally with your credentials and MFA. Playwright passively intercepts the OAuth token response — it never clicks buttons or fills forms.
 
-**Login**: Call `robinhood_browser_login` (MCP) or say "setup robinhood" (skills) to open Chrome. Log in normally with your credentials and MFA. Playwright passively intercepts the OAuth token response — it never clicks buttons or fills forms. Tokens are stored in the OS keychain via `Bun.secrets` (no files on disk).
+**Token storage** uses pluggable `TokenStore` adapters:
 
-**Token storage**: OS keychain only (macOS Keychain Services, Linux libsecret). No plaintext fallback. Two keychain entries: `session-tokens` (RH OAuth) and `proxy-token` (proxy access control shared secret). The proxy is the only component that reads RH tokens from the keychain — the client and agent never touch them directly.
+| Store | When to use | Config |
+|---|---|---|
+| `KeychainTokenStore` (default) | Local dev, macOS/Linux with desktop | Nothing — works out of the box |
+| `EncryptedFileTokenStore` | Docker, headless servers, CI, cloud | Set `ROBINHOOD_TOKENS_FILE` + `ROBINHOOD_TOKEN_KEY` env vars |
+| Direct `accessToken` | Serverless, testing, short-lived scripts | Pass `accessToken` to constructor or set `ROBINHOOD_ACCESS_TOKEN` env var |
 
-### How the auth proxy starts
+**How it works**: `restoreSession()` loads tokens from the configured `TokenStore`, injects `Authorization: Bearer` headers directly into API requests, and registers automatic token refresh on 401.
 
-The proxy is a lightweight HTTP server on `127.0.0.1:3100` that reads tokens from the keychain and injects `Authorization: Bearer` headers into every request forwarded to Robinhood. It also handles token refresh on 401 automatically.
+```typescript
+import { RobinhoodClient, EncryptedFileTokenStore } from "robinhood-for-agents";
 
-When `restoreSession()` is called, it runs `ensureProxy()` which:
+// Default: KeychainTokenStore
+const client = new RobinhoodClient();
 
-1. Checks if something is already listening on `:3100` (reuses it if so)
-2. If not, starts the proxy **in-process** via `Bun.serve()`
+// Docker/headless: EncryptedFileTokenStore (auto-detected from ROBINHOOD_TOKENS_FILE env)
+const client = new RobinhoodClient({ tokenStore: new EncryptedFileTokenStore() });
 
-This means:
-
-| Context | What happens | Proxy lifetime |
-|---------|-------------|----------------|
-| **MCP server** | Proxy starts once at boot, shared by all tool calls | Lives for the MCP session |
-| **Standalone script** (`bun -e`) | Proxy starts on first `restoreSession()`, reused for all calls | Dies when the script exits |
-| **Multiple processes** | Second process discovers the proxy on `:3100`, reads proxy token from OS keychain | Shared across processes |
-
-For **short-lived scripts** (skills, one-off commands), each invocation starts and stops the proxy with the process. This adds ~50ms of overhead per invocation. If you're running many short scripts and want to avoid this, start a persistent proxy in the background:
-
-```bash
-# Start a long-lived proxy (stays running until you kill it)
-npx robinhood-for-agents proxy &
-
-# Now any script will discover it on :3100 and reuse it
-bun -e "
-  import { getClient } from 'robinhood-for-agents';
-  const rh = getClient();
-  await rh.restoreSession();   // finds existing proxy, no startup cost
-  console.log(await rh.getQuotes('AAPL'));
-"
+// Direct token (no refresh)
+const client = new RobinhoodClient({ accessToken: "..." });
 ```
 
-This is the same proxy used for [Docker deployment](#docker-deployment) — the only difference is whether it's started in-process (automatic) or as a standalone background process (explicit).
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full auth flow diagram and [docs/SECURITY.md](docs/SECURITY.md) for the threat model.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full auth flow and [docs/SECURITY.md](docs/SECURITY.md) for the threat model.
 
 ## Development
 
@@ -324,16 +294,13 @@ uv run pytest                  # Run all tests
 
 ### Integration tests (verify local setup)
 
-Integration tests hit the real Robinhood API (read-only) through the auth proxy. Use them to confirm your local dev environment is working end-to-end.
+Integration tests hit the real Robinhood API (read-only). Use them to confirm your local dev environment is working end-to-end.
 
 ```bash
 # 1. Login (opens Chrome — one-time)
-robinhood-for-agents login
+robinhood-for-agents onboard
 
-# 2. Start the auth proxy
-robinhood-for-agents proxy
-
-# 3. Run integration tests
+# 2. Run integration tests
 cd typescript && bun run test:integration
 cd python && uv run pytest -m integration
 ```

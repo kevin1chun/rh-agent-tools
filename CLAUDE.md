@@ -77,7 +77,7 @@ await rh.restoreSession();
 - **Python**: >=3.12 (PEP 695 generics, `type` statement, `@override`)
 - **HTTP**: httpx (async)
 - **Validation**: Pydantic v2
-- **Auth**: proxy-only (auto-discovers TS auth proxy at `127.0.0.1:3100`)
+- **Auth**: TokenStore adapters (keychain or encrypted file), shared with TypeScript SDK
 - **Testing**: pytest + pytest-asyncio + respx
 - **Linting**: ruff
 - **Type Checking**: mypy --strict
@@ -101,16 +101,16 @@ async with RobinhoodClient() as client:
 ```
 - All methods are `async` (httpx under the hood)
 - Async-only — target users are AI agents
-- Shares auth proxy with TypeScript SDK — login once, use from either language
+- Shares token stores with TypeScript SDK — login once, use from either language
 
 ## Authentication
 - Browser login (`robinhood_browser_login`) opens a Chromium-based browser via playwright-core. On macOS, Brave and Chrome are auto-detected; otherwise use `BROWSER_PATH` or `robinhood-for-agents login --chrome /path/to/browser`.
 - Purely passive — Playwright intercepts `/oauth2/token` network traffic, never interacts with the DOM
 - Request body (JSON) → captures `device_token`; Response → captures `access_token` + `refresh_token`
-- Tokens stored directly in OS keychain via `Bun.secrets` (never on disk)
-- `restoreSession()` validates cached token, falls back to refresh, then directs to browser login
-- **Docker / OpenClaw:** Container cannot access the host keychain. Run an auth proxy on the host (`robinhood-for-agents proxy`) that injects auth headers; the container only needs `ROBINHOOD_API_PROXY` env var. **Never put tokens or encryption keys inside the container.** See `docs/DOCKER.md` and `docs/SECURITY.md`.
-- **Python SDK:** Connects to the same auth proxy. Auto-discovers at `127.0.0.1:3100`, or uses `ROBINHOOD_API_PROXY` env var. Does NOT access the keychain directly — all auth is proxy-mediated.
+- Tokens stored in OS keychain (`KeychainTokenStore`, default) or encrypted file (`EncryptedFileTokenStore`, for Docker/headless)
+- `restoreSession()` loads tokens from the configured `TokenStore`, sets Bearer auth on the session, and registers automatic 401 token refresh
+- **Docker / headless:** Use `EncryptedFileTokenStore` — set `ROBINHOOD_TOKENS_FILE` and `ROBINHOOD_TOKEN_KEY` env vars. The `onboard` command can export encrypted tokens for container use.
+- **Python SDK:** Uses the same `TokenStore` adapters. `KeychainTokenStore` (via `keyring`) for local dev, `EncryptedFileTokenStore` (via `cryptography`) for Docker.
 
 ## Safety Rules
 - **NEVER** place bulk cancel operations
@@ -129,10 +129,10 @@ cd python && uv run pytest
 ```
 Tests use mocking (vi.mock / respx) for HTTP layer — no real API calls.
 
-### Integration Tests (local only, requires auth proxy)
+### Integration Tests (local only, requires login)
 ```bash
-# Start the proxy first
-robinhood-for-agents proxy
+# Login first (one-time)
+robinhood-for-agents onboard
 
 # TypeScript
 cd typescript && bun run test:integration

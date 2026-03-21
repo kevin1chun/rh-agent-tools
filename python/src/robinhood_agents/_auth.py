@@ -1,94 +1,168 @@
-"""Authentication via the auth proxy.
+"""Authentication — load tokens from a TokenStore and inject into the session.
 
-The proxy (TypeScript: src/server/proxy.ts) holds tokens in the OS keychain
-and injects Bearer headers.  This module ensures the proxy is reachable and
-triggers a token reload after browser login.
-
-Auto-discovery: if ``ROBINHOOD_API_PROXY`` is not set, the SDK checks
-``127.0.0.1:3100`` for a running proxy before raising an error.
-
-The Python SDK does NOT include browser login — use the TypeScript CLI
-(``robinhood-for-agents login``) to authenticate.
+Token refresh (on 401) is handled automatically via the session's
+``on_unauthorized`` callback.
 """
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from time import time
+from typing import TYPE_CHECKING
 
 import httpx
 
 from ._errors import AuthenticationError
-from ._session import Session
-from ._token_store import load_proxy_token
+from ._token_store import TokenData, TokenStore
 from ._types import LoginResult
-from ._urls import configure_proxy, get_proxy_token, get_proxy_url
 
-_DEFAULT_PROXY = "http://127.0.0.1:3100"
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
+    from ._session import Session
 
-def _proxy_headers() -> dict[str, str]:
-    """Build headers for direct proxy control requests."""
-    token = get_proxy_token()
-    return {"X-Proxy-Token": token} if token else {}
-
-
-async def _discover_proxy() -> str | None:
-    """Check the default port for a running auth proxy."""
-    try:
-        async with httpx.AsyncClient(timeout=1.0) as client:
-            resp = await client.get(f"{_DEFAULT_PROXY}/health")
-            if resp.is_success:
-                return _DEFAULT_PROXY
-    except Exception:
-        pass
-    return None
+_CLIENT_ID = "c82SH0WZOsabOXGP2sxqcj34FxkvfnWRZBKlBjFS"
+_EXPIRATION_TIME = 734000
 
 
-async def restore_session(session: Session) -> LoginResult:
-    """Restore a session via the auth proxy.
+@dataclass
+class AuthState:
+    """Per-client token management state."""
 
-    Resolution order:
+    tokens: TokenData
+    store: TokenStore
+    refreshing: bool = False
 
-    1. ``ROBINHOOD_API_PROXY`` env var (set at module load in ``_urls.py``)
-    2. Auto-discover proxy at ``127.0.0.1:3100``
-    3. Raise ``AuthenticationError`` with setup instructions
+
+async def _refresh_tokens(state: AuthState) -> str | None:
+    """Refresh the access token using refresh_token + device_token.
+
+    Returns the new access token on success, None on failure.
     """
-    proxy_url = get_proxy_url()
+    tokens = state.tokens
+    if not tokens.refresh_token or not tokens.device_token:
+        return None
 
-    if not proxy_url:
-        proxy_url = await _discover_proxy()
-        if proxy_url:
-            proxy_token = load_proxy_token()
-            configure_proxy(proxy_url, proxy_token)
+    body = {
+        "grant_type": "refresh_token",
+        "refresh_token": tokens.refresh_token,
+        "scope": "internal",
+        "client_id": _CLIENT_ID,
+        "expires_in": str(_EXPIRATION_TIME),
+        "device_token": tokens.device_token,
+    }
 
-    if not proxy_url:
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                "https://api.robinhood.com/oauth2/token/",
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
+                    "X-Robinhood-API-Version": "1.431.4",
+                },
+                content="&".join(f"{k}={v}" for k, v in body.items()),
+            )
+    except Exception:
+        return None
+
+    if not resp.is_success:
+        return None
+
+    try:
+        data = resp.json()
+    except Exception:
+        return None
+
+    if "access_token" not in data:
+        return None
+
+    new_tokens = TokenData(
+        access_token=str(data["access_token"]),
+        refresh_token=str(data.get("refresh_token", tokens.refresh_token)),
+        token_type=str(data.get("token_type", "Bearer")),
+        device_token=tokens.device_token,
+        saved_at=time(),
+    )
+
+    # Update in-memory state
+    state.tokens = new_tokens
+
+    # Persist to store (best-effort)
+    import contextlib
+
+    with contextlib.suppress(Exception):
+        await state.store.save(new_tokens)
+
+    return new_tokens.access_token
+
+
+def _create_refresh_callback(
+    state: AuthState,
+) -> Callable[[], Awaitable[str | None]]:
+    """Create a 401-refresh callback with a concurrency guard."""
+
+    async def _refresh() -> str | None:
+        if state.refreshing:
+            return None  # Another refresh is in progress
+        state.refreshing = True
+        try:
+            return await _refresh_tokens(state)
+        finally:
+            state.refreshing = False
+
+    return _refresh
+
+
+async def restore_session(
+    session: Session,
+    store: TokenStore,
+) -> tuple[LoginResult, AuthState]:
+    """Restore a session by loading tokens from the store."""
+    tokens = await store.load()
+    if not tokens:
         raise AuthenticationError(
-            "No auth proxy found. Start it first:\n"
-            "  robinhood-for-agents proxy\n\n"
-            "Or set ROBINHOOD_API_PROXY for remote proxies."
+            "No tokens found. Run 'robinhood-for-agents onboard' to authenticate."
         )
 
-    # Ask the proxy to reload tokens from keychain
-    try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
-            await client.post(
-                f"{proxy_url}/reload-tokens",
-                headers=_proxy_headers(),
-            )
-    except Exception:
-        # Proxy might not support this endpoint yet — not fatal
-        pass
+    # Set access token on the session for Bearer injection
+    session.set_access_token(tokens.access_token)
 
-    return LoginResult(status="logged_in", method="proxy")
+    # Build auth state for refresh management
+    state = AuthState(tokens=tokens, store=store)
+
+    # Register 401 callback for automatic token refresh
+    session.on_unauthorized = _create_refresh_callback(state)
+
+    method = "encrypted_file" if "Encrypted" in type(store).__name__ else "keychain"
+
+    return LoginResult(status="logged_in", method=method), state
 
 
-async def logout(session: Session) -> None:
-    """Logout via the auth proxy."""
-    proxy_url = get_proxy_url()
-    if not proxy_url:
-        return
+def restore_session_from_token(session: Session, access_token: str) -> LoginResult:
+    """Restore a session from a direct access token (no store, no refresh)."""
+    session.set_access_token(access_token)
+    return LoginResult(status="logged_in", method="token")
 
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            await client.post(
-                f"{proxy_url}/logout",
-                headers=_proxy_headers(),
-            )
-    except Exception:
-        pass
+
+async def logout(session: Session, state: AuthState | None) -> None:
+    """Logout — revoke the token and clear the store."""
+    if state and state.tokens.access_token:
+        # Attempt to revoke the token
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                await client.post(
+                    "https://api.robinhood.com/oauth2/revoke_token/",
+                    content=f"client_id={_CLIENT_ID}&token={state.tokens.access_token}",
+                    headers={"Content-Type": "application/x-www-form-urlencoded; charset=utf-8"},
+                )
+        except Exception:
+            pass
+
+        # Clear the store
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            await state.store.delete()
+
+    session.clear_access_token()
+    session.on_unauthorized = None

@@ -42,9 +42,6 @@ if (args[0] === "onboard" || args[0] === "setup") {
   if (both) {
     console.log("\nRestart Claude Code to pick up the changes.");
   }
-} else if (args[0] === "proxy") {
-  const { runProxy } = await import("../src/server/cli/proxy-cmd.js");
-  await runProxy(args.slice(1));
 } else if (args.includes("--help") || args.includes("-h")) {
   console.log(`robinhood-for-agents — AI-native Robinhood trading interface
 
@@ -55,8 +52,6 @@ Usage:
   robinhood-for-agents install          Install MCP server config + skills (Claude Code)
   robinhood-for-agents install --mcp    Install MCP server config only
   robinhood-for-agents install --skills Install Claude Code skills only
-  robinhood-for-agents proxy            Start the auth proxy (default :3100)
-  robinhood-for-agents proxy --port N   Start the auth proxy on port N
   robinhood-for-agents --help           Show this help message`);
 } else {
   const { main } = await import("../src/server/index.js");

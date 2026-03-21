@@ -1,69 +1,20 @@
 /**
  * URL builders for Robinhood API endpoints.
  *
- * When an auth proxy is configured (via ROBINHOOD_API_PROXY env or
- * configureProxy()), the mutable API_BASE and NUMMUS_BASE point at the
- * proxy's path-prefix routes instead of the upstream origins.
+ * API_BASE and NUMMUS_BASE are constants — the client talks directly
+ * to Robinhood with Bearer auth injected by the session layer.
  */
 
-/** Mutable — points at the proxy when one is configured. */
-export let API_BASE = "https://api.robinhood.com";
-export let NUMMUS_BASE = "https://nummus.robinhood.com";
+export const API_BASE = "https://api.robinhood.com";
+export const NUMMUS_BASE = "https://nummus.robinhood.com";
 
-/** The original Robinhood origins (never change). */
-export const UPSTREAM_API = "https://api.robinhood.com";
-export const UPSTREAM_NUMMUS = "https://nummus.robinhood.com";
-
-let proxyUrl: string | null = null;
-let proxyToken: string | null = null;
-
-/** Point all URL builders at the auth proxy. */
-export function configureProxy(url: string, token?: string): void {
-  const base = url.replace(/\/$/, "");
-  proxyUrl = base;
-  proxyToken = token ?? null;
-  API_BASE = `${base}/rh`;
-  NUMMUS_BASE = `${base}/nummus`;
-}
-
-/** Return the configured proxy URL, or null if none. */
-export function getProxyUrl(): string | null {
-  return proxyUrl;
-}
-
-/** Return the proxy shared secret, or null if none. */
-export function getProxyToken(): string | null {
-  return proxyToken;
-}
-
-/** Build the set of trusted origins dynamically so it includes the proxy. */
+/** Trusted origins for redirect safety. */
 export function trustedOrigins(): Set<string> {
-  const origins = new Set([
-    new URL(UPSTREAM_API).origin,
-    new URL(UPSTREAM_NUMMUS).origin,
+  return new Set([
+    new URL(API_BASE).origin,
+    new URL(NUMMUS_BASE).origin,
     new URL("https://robinhood.com").origin,
   ]);
-  const proxy = getProxyUrl();
-  if (proxy) {
-    origins.add(new URL(proxy).origin);
-  }
-  try {
-    origins.add(new URL(API_BASE).origin);
-  } catch {
-    // API_BASE may be a relative path when proxy-configured
-  }
-  try {
-    origins.add(new URL(NUMMUS_BASE).origin);
-  } catch {
-    // Same
-  }
-  return origins;
-}
-
-// Auto-configure from env at module load
-const envProxy = process.env.ROBINHOOD_API_PROXY?.trim().replace(/\/$/, "");
-if (envProxy) {
-  configureProxy(envProxy);
 }
 
 const SAFE_PATH_SEGMENT = /^[a-zA-Z0-9_.:@-]+$/;

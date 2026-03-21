@@ -11,7 +11,7 @@ catch { console.log("not_authenticated"); }
 ```
 If `logged_in` — already authenticated, stop. Otherwise continue.
 
-`restoreSession()` auto-starts a local auth proxy on `:3100` that injects tokens from the OS keychain into API requests. The client never handles tokens directly.
+`restoreSession()` loads tokens from the configured TokenStore (OS keychain by default) and injects Bearer auth directly into API requests.
 
 ### Step 2: Browser Login
 ```bash
@@ -23,7 +23,6 @@ This runs the interactive setup — it will open Chrome to the real Robinhood we
 3. Robinhood handles MFA natively (push notification, SMS, etc.)
 4. Token captured automatically and saved to OS keychain
 5. Chrome closes when login is complete
-6. Auth proxy is started on `:3100`
 
 ### Step 3: Verify
 ```bash
@@ -37,13 +36,21 @@ console.log(JSON.stringify(acct, null, 2));
 ```
 Confirm to the user that authentication is complete.
 
+## Token Stores
+
+| Store | When to use | Config |
+|---|---|---|
+| `KeychainTokenStore` (default) | Local dev, macOS/Linux with desktop | Nothing — works out of the box |
+| `EncryptedFileTokenStore` | Docker, headless servers, CI, cloud | Set `ROBINHOOD_TOKENS_FILE` + `ROBINHOOD_TOKEN_KEY` env vars |
+| Direct `accessToken` | Serverless, testing, short-lived scripts | Pass `accessToken` to constructor |
+
 ## Troubleshooting
-- **Port 3100 conflict**: Another process on `:3100` — kill it or run `robinhood-for-agents proxy --port N`
-- **`not_authenticated` after login**: Try `bunx robinhood-for-agents onboard` to re-login and restart the proxy
-- **Proxy not running**: `restoreSession()` auto-starts it, but you can also run `robinhood-for-agents proxy` manually
+- **`not_authenticated` after login**: Try `bunx robinhood-for-agents onboard` to re-login
+- **Token expired**: Tokens auto-refresh on 401. If refresh fails, re-run `onboard`
+- **Docker/headless**: Set `ROBINHOOD_TOKENS_FILE` and `ROBINHOOD_TOKEN_KEY` env vars
 
 ## Notes
 - No credentials (username/password) pass through the tool layer — login happens on the real Robinhood website
-- Tokens are stored in the OS keychain via `Bun.secrets` — never on disk
+- Tokens are stored in the OS keychain via `Bun.secrets` (default) — never on disk in plaintext
 - Tokens expire after ~24h; the client auto-refreshes before requiring re-auth
-- All API calls route through the local auth proxy (`:3100`) which injects Bearer tokens — the agent never sees tokens
+- The client injects `Authorization: Bearer` headers directly into API requests

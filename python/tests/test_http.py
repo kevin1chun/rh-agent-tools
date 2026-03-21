@@ -5,41 +5,13 @@ import respx
 from httpx import Response
 
 from robinhood_agents._errors import APIError, NotFoundError, RateLimitError
-from robinhood_agents._http import proxy_rewrite, request_delete, request_get, request_post
+from robinhood_agents._http import request_delete, request_get, request_post
 from robinhood_agents._session import Session
 
 
 @pytest.fixture
 async def session() -> Session:
     return Session()
-
-
-class TestProxyRewrite:
-    def test_no_proxy(self) -> None:
-        url = "https://api.robinhood.com/accounts/"
-        assert proxy_rewrite(url) == url
-
-    def test_rewrite_api(self) -> None:
-        import robinhood_agents._urls as urls_mod
-
-        old_proxy = urls_mod._proxy_url
-        try:
-            urls_mod._proxy_url = "http://localhost:8080"
-            result = proxy_rewrite("https://api.robinhood.com/accounts/")
-            assert result == "http://localhost:8080/rh/accounts/"
-        finally:
-            urls_mod._proxy_url = old_proxy
-
-    def test_rewrite_nummus(self) -> None:
-        import robinhood_agents._urls as urls_mod
-
-        old_proxy = urls_mod._proxy_url
-        try:
-            urls_mod._proxy_url = "http://localhost:8080"
-            result = proxy_rewrite("https://nummus.robinhood.com/orders/")
-            assert result == "http://localhost:8080/nummus/orders/"
-        finally:
-            urls_mod._proxy_url = old_proxy
 
 
 @respx.mock

@@ -34,8 +34,7 @@ async with RobinhoodClient() as client:
 
 ## Authentication
 
-The Python SDK connects to the auth proxy (shared with the TypeScript SDK).
-The proxy holds tokens, injects auth headers, and handles token refresh.
+The Python SDK uses the same `TokenStore` adapters as the TypeScript SDK.
 
 ### Local setup
 
@@ -44,26 +43,29 @@ The proxy holds tokens, injects auth headers, and handles token refresh.
    robinhood-for-agents onboard
    ```
 
-2. **Start the proxy:**
-   ```bash
-   robinhood-for-agents proxy
-   ```
-
-3. **Use from Python** — auto-discovers the proxy at `127.0.0.1:3100`:
+2. **Use from Python** — loads tokens from OS keychain automatically:
    ```python
    async with RobinhoodClient() as client:
        await client.restore_session()
        quotes = await client.get_quotes("AAPL")
    ```
 
-### Docker / remote
+### Docker / headless
 
-Set `ROBINHOOD_API_PROXY` to skip auto-discovery:
+Set env vars for `EncryptedFileTokenStore`:
 
 ```bash
-export ROBINHOOD_API_PROXY=http://host.docker.internal:3100
-export ROBINHOOD_PROXY_TOKEN=<your-token>
+export ROBINHOOD_TOKENS_FILE=/path/to/tokens.enc
+export ROBINHOOD_TOKEN_KEY=<base64-key>
 ```
+
+### Token Stores
+
+| Store | When to use | Config |
+|---|---|---|
+| `KeychainTokenStore` (default) | Local dev | Nothing — works out of the box |
+| `EncryptedFileTokenStore` | Docker, headless, CI | Set `ROBINHOOD_TOKENS_FILE` + `ROBINHOOD_TOKEN_KEY` |
+| Direct `access_token` | Testing, short-lived scripts | Pass `access_token` to constructor |
 
 See [Docker docs](../docs/DOCKER.md) for full setup.
 
