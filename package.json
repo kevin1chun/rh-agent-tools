@@ -1,16 +1,16 @@
 {
-  "name": "robinhood-for-agents",
-  "version": "0.6.2",
+  "name": "@tajiai/robinhood-for-agents",
+  "version": "0.7.0",
   "type": "module",
   "description": "AI-native Robinhood trading interface — MCP server + TypeScript client",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "author": "Kevin Chun",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kevin1chun/robinhood-for-agents.git"
+    "url": "https://github.com/TajiAI/robinhood-for-agents.git"
   },
-  "homepage": "https://github.com/kevin1chun/robinhood-for-agents#readme",
-  "bugs": "https://github.com/kevin1chun/robinhood-for-agents/issues",
+  "homepage": "https://github.com/TajiAI/robinhood-for-agents#readme",
+  "bugs": "https://github.com/TajiAI/robinhood-for-agents/issues",
   "keywords": [
     "robinhood",
     "mcp",
@@ -49,7 +49,7 @@
     "@biomejs/biome": "^2.0.0",
     "@types/bun": "latest",
     "msw": "^2.7.0",
-    "typescript": "^5.8.0",
+    "typescript": "^6.0.2",
     "vitest": "^4.0.18"
   },
   "scripts": {
@@ -63,7 +63,6 @@
     "zod": "^4.3.6"
   },
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "registry": "https://npm.pkg.github.com"
   }
 }

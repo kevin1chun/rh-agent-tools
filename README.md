@@ -1,9 +1,9 @@
 # robinhood-for-agents
 
-[![CI](https://github.com/kevin1chun/robinhood-for-agents/actions/workflows/ci.yml/badge.svg)](https://github.com/kevin1chun/robinhood-for-agents/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/robinhood-for-agents)](https://www.npmjs.com/package/robinhood-for-agents)
+[![CI](https://github.com/TajiAI/robinhood-for-agents/actions/workflows/ci.yml/badge.svg)](https://github.com/TajiAI/robinhood-for-agents/actions/workflows/ci.yml)
+[![GitHub Package](https://img.shields.io/github/v/release/TajiAI/robinhood-for-agents?label=package)](https://github.com/TajiAI/robinhood-for-agents/packages)
 [![ClawHub](https://img.shields.io/badge/ClawHub-robinhood--for--agents-blue)](https://clawhub.ai/kevin1chun/robinhood-for-agents)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 
 Robinhood for AI agents — an MCP server with 18 structured tools and a standalone TypeScript client, in a single package.
 
@@ -41,7 +41,7 @@ robinhood-for-agents onboard --agent openclaw
 ### From source
 
 ```bash
-git clone https://github.com/kevin1chun/robinhood-for-agents.git
+git clone https://github.com/TajiAI/robinhood-for-agents.git
 cd robinhood-for-agents
 bun install
 bun bin/robinhood-for-agents.ts onboard
@@ -315,6 +315,57 @@ bun run check                  # Biome lint + format
 npx vitest run                 # Run all tests
 ```
 
+## Internal Distribution (TajiAI)
+
+This package is published to [GitHub Packages](https://github.com/orgs/TajiAI/packages) as `@tajiai/robinhood-for-agents`.
+
+### Developer setup (one-time)
+
+1. Create a GitHub Personal Access Token (classic) at **Settings → Developer settings → Personal access tokens → Tokens (classic)** with the `read:packages` scope.
+
+2. Configure npm to authenticate with GitHub Packages:
+   ```bash
+   npm config set //npm.pkg.github.com/:_authToken ghp_YOUR_TOKEN_HERE
+   ```
+
+### Add to a TajiAI service
+
+1. Add a `.npmrc` to your project root (if not already present):
+   ```
+   @tajiai:registry=https://npm.pkg.github.com
+   ```
+
+2. Install with an alias so imports match the documentation:
+   ```bash
+   bun add robinhood-for-agents@npm:@tajiai/robinhood-for-agents@^0.7.0
+   ```
+   This adds `"robinhood-for-agents": "npm:@tajiai/robinhood-for-agents@^0.7.0"` to your `package.json`.
+
+3. Import as usual:
+   ```typescript
+   import { getClient } from "robinhood-for-agents";
+   ```
+
+### CI setup (GitHub Actions)
+
+For TajiAI services that depend on this package, add registry auth to your workflow:
+
+```yaml
+steps:
+  - uses: actions/checkout@v4
+  - uses: actions/setup-node@v4
+    with:
+      node-version: "22"
+      registry-url: "https://npm.pkg.github.com"
+      scope: "@tajiai"
+  - uses: oven-sh/setup-bun@v2
+  - run: bun install --frozen-lockfile
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+`GITHUB_TOKEN` is automatic in GitHub Actions for repos in the same TajiAI org — no extra secrets needed. For repos outside the org, store a PAT with `read:packages` as a repository secret.
+
 ## Architecture
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for full system design, authentication flow, HTTP pipeline, and exception hierarchy.
@@ -340,4 +391,4 @@ This software is provided "as is" without warranty of any kind. See [LICENSE](LI
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Proprietary — TajiAI internal use only. See [LICENSE](LICENSE).
