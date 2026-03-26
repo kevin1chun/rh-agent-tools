@@ -9,7 +9,7 @@ import re
 API_BASE = "https://api.robinhood.com"
 NUMMUS_BASE = "https://nummus.robinhood.com"
 
-_SAFE_PATH_SEGMENT = re.compile(r"^[a-zA-Z0-9_.:@-]+$")
+_SAFE_PATH_SEGMENT = re.compile(r"^[a-zA-Z0-9_.-]+$")
 
 
 def trusted_origins() -> frozenset[str]:

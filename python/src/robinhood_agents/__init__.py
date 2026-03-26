@@ -26,6 +26,13 @@ from ._errors import (
     RobinhoodError,
     TokenExpiredError,
 )
+from ._token_store import (
+    EncryptedFileTokenStore,
+    KeychainTokenStore,
+    TokenData,
+    TokenStore,
+    create_token_store,
+)
 from ._types import (
     Account,
     AccountNumber,
@@ -77,6 +84,14 @@ def get_client() -> RobinhoodClient:
     return _default_client
 
 
+async def close_client() -> None:
+    """Close the module-level singleton client, releasing its connection pool."""
+    global _default_client
+    if _default_client is not None:
+        await _default_client.close()
+        _default_client = None
+
+
 __all__ = [
     "APIError",
     "Account",
@@ -89,6 +104,7 @@ __all__ = [
     "CryptoQuote",
     "Dividend",
     "Earnings",
+    "EncryptedFileTokenStore",
     "Fundamental",
     "HistoricalDataPoint",
     "Holding",
@@ -97,6 +113,7 @@ __all__ = [
     "Instrument",
     "InstrumentId",
     "InvestmentProfile",
+    "KeychainTokenStore",
     "LoginResult",
     "MarketHours",
     "News",
@@ -121,7 +138,11 @@ __all__ = [
     "RobinhoodError",
     "StockHistorical",
     "StockOrder",
+    "TokenData",
     "TokenExpiredError",
+    "TokenStore",
     "UserProfile",
+    "close_client",
+    "create_token_store",
     "get_client",
 ]

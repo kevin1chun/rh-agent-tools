@@ -7,6 +7,8 @@ Prerequisites:
 Run: uv run pytest -m integration
 """
 
+from collections.abc import AsyncGenerator
+
 import pytest
 
 from robinhood_agents import RobinhoodClient
@@ -15,7 +17,7 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
-async def client():
+async def client() -> AsyncGenerator[RobinhoodClient, None]:
     async with RobinhoodClient() as c:
         await c.restore_session()
         yield c

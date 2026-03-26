@@ -4,6 +4,7 @@ All methods are async.  Call ``restore_session()`` before any data method.
 Multi-account is first-class: account-scoped methods accept ``account_number``.
 """
 
+import asyncio
 import uuid
 from typing import Self
 
@@ -205,10 +206,9 @@ class RobinhoodClient:
         if not pos_list:
             return {}
 
-        instrument_list: list[Instrument] = []
-        for pos in pos_list:
-            inst = await self.get_instrument_by_url(pos.instrument)
-            instrument_list.append(inst)
+        instrument_list = list(
+            await asyncio.gather(*(self.get_instrument_by_url(pos.instrument) for pos in pos_list))
+        )
 
         symbol_list = [i.symbol for i in instrument_list]
         quote_list = await self.get_quotes(symbol_list)
@@ -475,7 +475,7 @@ class RobinhoodClient:
             None,
         )
         if not pair:
-            return CryptoQuote(mark_price="0")
+            raise NotFoundError(f"Crypto pair not found: {sym_upper}")
         raw_quote = await request_get(self._session, urls.crypto_quote(pair["id"]))
         return CryptoQuote.model_validate(raw_quote)
 
