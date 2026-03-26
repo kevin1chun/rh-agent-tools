@@ -18,12 +18,19 @@ export type { OrderBookLevel, OrderBookSnapshot } from "./order-book.js";
 export { OrderBook } from "./order-book.js";
 export { StreamingAuth } from "./streaming-auth.js";
 export type {
+  CandleEvent,
+  CandleOptions,
   EventType,
+  OrderBookOptions,
   OrderEvent,
   QuoteEvent,
+  ResolvedSubscribeOptions,
   StreamingTokenData,
+  SubscribeOptions,
   TradeEvent,
+  TradeOptions,
 } from "./types.js";
+export { resolveFromTime, resolveSubscribeOptions } from "./types.js";
 
 const MAX_RECONNECT_ATTEMPTS = 10;
 const BASE_DELAY_MS = 1_000;

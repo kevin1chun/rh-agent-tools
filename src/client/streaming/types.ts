@@ -219,6 +219,52 @@ export interface TradeEvent {
   tickDirection: string;
 }
 
+/** A parsed Candle event from FEED_DATA. */
+export interface CandleEvent {
+  time: number;       // Candle period start (epoch ms)
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  count: number;
+  vwap: number;
+  eventTime: number;  // 0 for backfill, real timestamp for live
+}
+
+// ---------------------------------------------------------------------------
+// Subscription Options
+// ---------------------------------------------------------------------------
+
+export interface CandleOptions {
+  interval: string;
+  from?: Date | string;
+  maxCandles?: number;
+}
+
+export interface TradeOptions {
+  maxTrades?: number;
+}
+
+export interface OrderBookOptions {
+  maxDepth?: number;
+}
+
+export interface SubscribeOptions {
+  candles?: CandleOptions | boolean;
+  quotes?: boolean;
+  trades?: TradeOptions | boolean;
+  orderBook?: OrderBookOptions | boolean;
+}
+
+/** Internal resolved form — booleans normalized to config objects. */
+export interface ResolvedSubscribeOptions {
+  candles?: { interval: string; fromTime: number; maxCandles: number };
+  quotes: boolean;
+  trades?: { maxTrades: number };
+  orderBook?: { maxDepth: number };
+}
+
 // ---------------------------------------------------------------------------
 // Streaming Token
 // ---------------------------------------------------------------------------
@@ -240,3 +286,56 @@ export const StreamingTokenResponseSchema = z.object({
 });
 
 export type StreamingTokenData = z.infer<typeof StreamingTokenDataSchema>;
+
+// ---------------------------------------------------------------------------
+// Utilities
+// ---------------------------------------------------------------------------
+
+const DEFAULT_FROM_TIME = 10000000000;
+const DEFAULT_MAX_CANDLES = 5000;
+const DEFAULT_MAX_TRADES = 500;
+const DEFAULT_ORDER_BOOK_DEPTH = 50;
+
+/** Convert a `from` option (Date, relative string, or undefined) to epoch ms. */
+export function resolveFromTime(from?: Date | string): number {
+  if (from === undefined) return DEFAULT_FROM_TIME;
+  if (from instanceof Date) return from.getTime();
+  const match = from.match(/^(\d+)(d|h)$/);
+  if (!match) {
+    throw new Error(`Invalid from duration: "${from}". Use "30d" or "24h".`);
+  }
+  const value = Number(match[1]);
+  const unit = match[2];
+  const ms = unit === "d" ? value * 86_400_000 : value * 3_600_000;
+  return Date.now() - ms;
+}
+
+/** Normalize SubscribeOptions (booleans → config objects with defaults). */
+export function resolveSubscribeOptions(opts: SubscribeOptions): ResolvedSubscribeOptions {
+  const candles =
+    opts.candles === true
+      ? { interval: "5m", fromTime: resolveFromTime(), maxCandles: DEFAULT_MAX_CANDLES }
+      : opts.candles
+        ? {
+            interval: opts.candles.interval,
+            fromTime: resolveFromTime(opts.candles.from),
+            maxCandles: opts.candles.maxCandles ?? DEFAULT_MAX_CANDLES,
+          }
+        : undefined;
+
+  const trades =
+    opts.trades === true
+      ? { maxTrades: DEFAULT_MAX_TRADES }
+      : opts.trades
+        ? { maxTrades: opts.trades.maxTrades ?? DEFAULT_MAX_TRADES }
+        : undefined;
+
+  const orderBook =
+    opts.orderBook === true
+      ? { maxDepth: DEFAULT_ORDER_BOOK_DEPTH }
+      : opts.orderBook
+        ? { maxDepth: opts.orderBook.maxDepth ?? DEFAULT_ORDER_BOOK_DEPTH }
+        : undefined;
+
+  return { candles, quotes: opts.quotes ?? false, trades, orderBook };
+}
