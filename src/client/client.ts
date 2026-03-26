@@ -45,12 +45,13 @@ const MULTI_ACCOUNT_PARAMS: Record<string, string> = {
 };
 
 export class RobinhoodClient {
-  private session: RobinhoodSession;
+  /** @internal Exposed for streaming module — do NOT use in LLM-facing code. */
+  readonly _session: RobinhoodSession;
   private _loggedIn = false;
   private _indexCache: Map<string, IndexInstrument> | null = null;
 
   constructor(opts?: { timeoutMs?: number }) {
-    this.session = createSession(opts);
+    this._session = createSession(opts);
   }
 
   get isLoggedIn(): boolean {
@@ -62,13 +63,13 @@ export class RobinhoodClient {
   // ---------------------------------------------------------------------------
 
   async restoreSession(): Promise<LoginResult> {
-    const result = await restoreSessionFn(this.session);
+    const result = await restoreSessionFn(this._session);
     this._loggedIn = true;
     return result;
   }
 
   async logout(): Promise<void> {
-    await logoutFn(this.session);
+    await logoutFn(this._session);
     this._loggedIn = false;
   }
 
@@ -97,7 +98,7 @@ export class RobinhoodClient {
   async getAccounts(opts?: { allAccounts?: boolean }): Promise<Account[]> {
     this.requireAuth();
     const params = opts?.allAccounts !== false ? { ...MULTI_ACCOUNT_PARAMS } : {};
-    return (await requestGet(this.session, urls.accounts(), {
+    return (await requestGet(this._session, urls.accounts(), {
       dataType: "results",
       params,
     })) as Account[];
@@ -106,30 +107,31 @@ export class RobinhoodClient {
   async getAccountProfile(accountNumber?: string): Promise<Account> {
     this.requireAuth();
     if (accountNumber) {
-      return (await requestGet(this.session, urls.account(accountNumber))) as Account;
+      return (await requestGet(this._session, urls.account(accountNumber))) as Account;
     }
     const accounts = await this.getAccounts();
+    if (accounts.length === 0) throw new NotFoundError("No brokerage account found");
     return accounts[0] as Account;
   }
 
   async getPortfolioProfile(accountNumber?: string): Promise<Portfolio> {
     this.requireAuth();
     if (accountNumber) {
-      return (await requestGet(this.session, urls.portfolio(accountNumber))) as Portfolio;
+      return (await requestGet(this._session, urls.portfolio(accountNumber))) as Portfolio;
     }
-    return (await requestGet(this.session, urls.portfolios(), {
+    return (await requestGet(this._session, urls.portfolios(), {
       dataType: "indexzero",
     })) as Portfolio;
   }
 
   async getUserProfile(): Promise<UserProfile> {
     this.requireAuth();
-    return (await requestGet(this.session, urls.user())) as UserProfile;
+    return (await requestGet(this._session, urls.user())) as UserProfile;
   }
 
   async getInvestmentProfile(): Promise<InvestmentProfile> {
     this.requireAuth();
-    return (await requestGet(this.session, urls.investmentProfile())) as InvestmentProfile;
+    return (await requestGet(this._session, urls.investmentProfile())) as InvestmentProfile;
   }
 
   // ---------------------------------------------------------------------------
@@ -141,7 +143,7 @@ export class RobinhoodClient {
     const params: Record<string, string> = { ...MULTI_ACCOUNT_PARAMS };
     if (opts?.nonzero) params.nonzero = "true";
     if (opts?.accountNumber) params.account_number = opts.accountNumber;
-    return (await requestGet(this.session, urls.positions(), {
+    return (await requestGet(this._session, urls.positions(), {
       dataType: "pagination",
       params,
     })) as Position[];
@@ -152,7 +154,7 @@ export class RobinhoodClient {
     if (!url.startsWith(urls.API_BASE)) {
       throw new Error(`Refusing to fetch instrument from untrusted URL: ${url}`);
     }
-    return (await requestGet(this.session, url)) as Instrument;
+    return (await requestGet(this._session, url)) as Instrument;
   }
 
   async buildHoldings(opts?: {
@@ -167,12 +169,10 @@ export class RobinhoodClient {
 
     if (positions.length === 0) return {};
 
-    // Resolve instruments and quotes in parallel per position
-    const instruments: Instrument[] = [];
-    for (const pos of positions) {
-      const inst = await this.getInstrumentByUrl(pos.instrument);
-      instruments.push(inst);
-    }
+    // Resolve all instruments concurrently
+    const instruments = await Promise.all(
+      positions.map((pos) => this.getInstrumentByUrl(pos.instrument)),
+    );
 
     const symbolList = instruments.map((i) => i.symbol);
     const quotes = await this.getQuotes(symbolList);
@@ -229,7 +229,7 @@ export class RobinhoodClient {
   async getQuotes(symbols: string | string[]): Promise<Quote[]> {
     this.requireAuth();
     const list = normalizeSymbols(symbols);
-    return (await requestGet(this.session, urls.quotes(), {
+    return (await requestGet(this._session, urls.quotes(), {
       dataType: "results",
       params: { symbols: list.join(",") },
     })) as Quote[];
@@ -248,7 +248,7 @@ export class RobinhoodClient {
   async getFundamentals(symbols: string[]): Promise<Fundamental[]> {
     this.requireAuth();
     const list = symbols.map((s) => s.trim().toUpperCase());
-    return (await requestGet(this.session, urls.fundamentals(), {
+    return (await requestGet(this._session, urls.fundamentals(), {
       dataType: "results",
       params: { symbols: list.join(",") },
     })) as Fundamental[];
@@ -260,7 +260,7 @@ export class RobinhoodClient {
   ): Promise<StockHistorical[]> {
     this.requireAuth();
     const list = normalizeSymbols(symbols);
-    return (await requestGet(this.session, urls.stockHistoricals(), {
+    return (await requestGet(this._session, urls.stockHistoricals(), {
       dataType: "results",
       params: {
         symbols: list.join(","),
@@ -277,7 +277,7 @@ export class RobinhoodClient {
 
   async getNews(symbol: string): Promise<News[]> {
     this.requireAuth();
-    return (await requestGet(this.session, urls.news(symbol), {
+    return (await requestGet(this._session, urls.news(symbol), {
       dataType: "results",
     })) as News[];
   }
@@ -288,7 +288,7 @@ export class RobinhoodClient {
     const insts = await this.findInstruments(symbol);
     if (insts.length === 0) return {} as Rating;
     const inst = insts[0] as Instrument;
-    return (await requestGet(this.session, urls.ratings(inst.id))) as Rating;
+    return (await requestGet(this._session, urls.ratings(inst.id))) as Rating;
   }
 
   async getEarnings(symbol: string): Promise<Earnings[]> {
@@ -296,7 +296,7 @@ export class RobinhoodClient {
     // Use the instrument_id approach to get earnings
     const insts = await this.findInstruments(symbol);
     if (insts.length === 0) return [];
-    return (await requestGet(this.session, urls.earnings(), {
+    return (await requestGet(this._session, urls.earnings(), {
       dataType: "results",
       params: { symbol: symbol.toUpperCase() },
     })) as Earnings[];
@@ -309,7 +309,7 @@ export class RobinhoodClient {
   private async getIndexes(): Promise<Map<string, IndexInstrument>> {
     if (this._indexCache) return this._indexCache;
     this.requireAuth();
-    const indexes = (await requestGet(this.session, urls.indexes(), {
+    const indexes = (await requestGet(this._session, urls.indexes(), {
       dataType: "results",
     })) as IndexInstrument[];
     this._indexCache = new Map();
@@ -324,7 +324,7 @@ export class RobinhoodClient {
     const indexMap = await this.getIndexes();
     const index = indexMap.get(symbol.toUpperCase());
     if (!index) return null;
-    const resp = (await requestGet(this.session, urls.indexValues(), {
+    const resp = (await requestGet(this._session, urls.indexValues(), {
       params: { ids: index.id },
     })) as { status?: string; data?: Array<{ status?: string; data?: IndexValue }> };
     return resp.data?.[0]?.data ?? null;
@@ -343,7 +343,7 @@ export class RobinhoodClient {
     const indexMap = await this.getIndexes();
     const index = indexMap.get(sym);
     if (index?.tradable_chain_ids?.length) {
-      const chains = (await requestGet(this.session, urls.optionChains(), {
+      const chains = (await requestGet(this._session, urls.optionChains(), {
         dataType: "results",
         params: { ids: index.tradable_chain_ids.join(",") },
       })) as OptionChain[];
@@ -368,7 +368,7 @@ export class RobinhoodClient {
     const instruments = await this.findInstruments(sym);
     const inst = instruments.find((i) => i.symbol === sym);
     if (!inst) return emptyChain;
-    const chains = (await requestGet(this.session, urls.optionChains(), {
+    const chains = (await requestGet(this._session, urls.optionChains(), {
       dataType: "results",
       params: { equity_instrument_ids: inst.id, state: "active" },
     })) as OptionChain[];
@@ -390,7 +390,7 @@ export class RobinhoodClient {
     if (opts?.strikePrice != null) params.strike_price = String(opts.strikePrice);
     if (opts?.optionType) params.type = opts.optionType;
 
-    let results = (await requestGet(this.session, urls.optionInstruments(), {
+    let results = (await requestGet(this._session, urls.optionInstruments(), {
       dataType: "pagination",
       params,
     })) as OptionInstrument[];
@@ -424,15 +424,12 @@ export class RobinhoodClient {
     });
     if (options.length === 0) return [];
 
-    const results: OptionMarketData[] = [];
-    for (const opt of options) {
-      const data = (await requestGet(
-        this.session,
-        urls.optionMarketData(opt.id),
-      )) as OptionMarketData;
-      results.push(data);
-    }
-    return results;
+    return Promise.all(
+      options.map(
+        (opt) =>
+          requestGet(this._session, urls.optionMarketData(opt.id)) as Promise<OptionMarketData>,
+      ),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -441,14 +438,14 @@ export class RobinhoodClient {
 
   async getCryptoQuote(symbol: string): Promise<CryptoQuote> {
     this.requireAuth();
-    const pairs = (await requestGet(this.session, urls.cryptoCurrencyPairs(), {
+    const pairs = (await requestGet(this._session, urls.cryptoCurrencyPairs(), {
       dataType: "results",
     })) as Array<{ id: string; asset_currency: { code: string } }>;
     const pair = pairs.find((p) => p.asset_currency.code.toUpperCase() === symbol.toUpperCase());
     if (!pair) {
       return { mark_price: "0" } as CryptoQuote;
     }
-    return (await requestGet(this.session, urls.cryptoQuote(pair.id))) as CryptoQuote;
+    return (await requestGet(this._session, urls.cryptoQuote(pair.id))) as CryptoQuote;
   }
 
   async getCryptoHistoricals(
@@ -456,12 +453,12 @@ export class RobinhoodClient {
     opts?: { interval?: string; span?: string; bounds?: string },
   ): Promise<HistoricalDataPoint[]> {
     this.requireAuth();
-    const pairs = (await requestGet(this.session, urls.cryptoCurrencyPairs(), {
+    const pairs = (await requestGet(this._session, urls.cryptoCurrencyPairs(), {
       dataType: "results",
     })) as Array<{ id: string; asset_currency: { code: string } }>;
     const pair = pairs.find((p) => p.asset_currency.code.toUpperCase() === symbol.toUpperCase());
     if (!pair) return [];
-    return (await requestGet(this.session, urls.cryptoHistoricals(pair.id), {
+    return (await requestGet(this._session, urls.cryptoHistoricals(pair.id), {
       dataType: "results",
       params: {
         interval: opts?.interval ?? "day",
@@ -473,7 +470,7 @@ export class RobinhoodClient {
 
   async getCryptoPositions(): Promise<CryptoPosition[]> {
     this.requireAuth();
-    return (await requestGet(this.session, urls.cryptoHoldings(), {
+    return (await requestGet(this._session, urls.cryptoHoldings(), {
       dataType: "results",
     })) as CryptoPosition[];
   }
@@ -486,7 +483,7 @@ export class RobinhoodClient {
     this.requireAuth();
     const params: Record<string, string> = {};
     if (opts?.accountNumber) params.account_number = opts.accountNumber;
-    return (await requestGet(this.session, urls.stockOrders(), {
+    return (await requestGet(this._session, urls.stockOrders(), {
       dataType: "pagination",
       params,
     })) as StockOrder[];
@@ -499,7 +496,7 @@ export class RobinhoodClient {
 
   async getStockOrder(orderId: string): Promise<StockOrder> {
     this.requireAuth();
-    return (await requestGet(this.session, urls.stockOrder(orderId))) as StockOrder;
+    return (await requestGet(this._session, urls.stockOrder(orderId))) as StockOrder;
   }
 
   async orderStock(
@@ -590,7 +587,7 @@ export class RobinhoodClient {
       payload.preset_percent_limit = "0.05";
     }
 
-    return (await requestPost(this.session, urls.stockOrders(), {
+    return (await requestPost(this._session, urls.stockOrders(), {
       payload,
       asJson: true,
     })) as StockOrder;
@@ -598,7 +595,7 @@ export class RobinhoodClient {
 
   async cancelStockOrder(orderId: string): Promise<void> {
     this.requireAuth();
-    await requestPost(this.session, urls.cancelStockOrder(orderId));
+    await requestPost(this._session, urls.cancelStockOrder(orderId));
   }
 
   // ---------------------------------------------------------------------------
@@ -609,7 +606,7 @@ export class RobinhoodClient {
     this.requireAuth();
     const params: Record<string, string> = {};
     if (opts?.accountNumber) params.account_number = opts.accountNumber;
-    return (await requestGet(this.session, urls.optionOrders(), {
+    return (await requestGet(this._session, urls.optionOrders(), {
       dataType: "pagination",
       params,
     })) as OptionOrder[];
@@ -622,7 +619,7 @@ export class RobinhoodClient {
 
   async getOptionOrder(orderId: string): Promise<OptionOrder> {
     this.requireAuth();
-    return (await requestGet(this.session, urls.optionOrder(orderId))) as OptionOrder;
+    return (await requestGet(this._session, urls.optionOrder(orderId))) as OptionOrder;
   }
 
   async orderOption(
@@ -692,7 +689,7 @@ export class RobinhoodClient {
       payload.stop_price = String(opts.stopPrice);
     }
 
-    return (await requestPost(this.session, urls.optionOrders(), {
+    return (await requestPost(this._session, urls.optionOrders(), {
       payload,
       asJson: true,
     })) as OptionOrder;
@@ -700,7 +697,7 @@ export class RobinhoodClient {
 
   async cancelOptionOrder(orderId: string): Promise<void> {
     this.requireAuth();
-    await requestPost(this.session, urls.cancelOptionOrder(orderId));
+    await requestPost(this._session, urls.cancelOptionOrder(orderId));
   }
 
   // ---------------------------------------------------------------------------
@@ -711,7 +708,7 @@ export class RobinhoodClient {
     this.requireAuth();
     const params: Record<string, string> = {};
     if (opts?.accountNumber) params.account_number = opts.accountNumber;
-    return (await requestGet(this.session, urls.cryptoOrders(), {
+    return (await requestGet(this._session, urls.cryptoOrders(), {
       dataType: "pagination",
       params,
     })) as CryptoOrder[];
@@ -724,7 +721,7 @@ export class RobinhoodClient {
 
   async getCryptoOrder(orderId: string): Promise<CryptoOrder> {
     this.requireAuth();
-    return (await requestGet(this.session, urls.cryptoOrder(orderId))) as CryptoOrder;
+    return (await requestGet(this._session, urls.cryptoOrder(orderId))) as CryptoOrder;
   }
 
   async orderCrypto(
@@ -741,7 +738,7 @@ export class RobinhoodClient {
     const s = symbol.trim().toUpperCase();
 
     // Look up the currency pair
-    const pairs = (await requestGet(this.session, urls.cryptoCurrencyPairs(), {
+    const pairs = (await requestGet(this._session, urls.cryptoCurrencyPairs(), {
       dataType: "results",
     })) as Array<{ id: string; asset_currency: { code: string } }>;
     const pair = pairs.find((p) => p.asset_currency.code.toUpperCase() === s);
@@ -774,7 +771,7 @@ export class RobinhoodClient {
       payload.type = "limit";
     }
 
-    return (await requestPost(this.session, urls.cryptoOrders(), {
+    return (await requestPost(this._session, urls.cryptoOrders(), {
       payload,
       asJson: true,
     })) as CryptoOrder;
@@ -782,7 +779,7 @@ export class RobinhoodClient {
 
   async cancelCryptoOrder(orderId: string): Promise<void> {
     this.requireAuth();
-    await requestPost(this.session, urls.cancelCryptoOrder(orderId));
+    await requestPost(this._session, urls.cancelCryptoOrder(orderId));
   }
 
   // ---------------------------------------------------------------------------
@@ -791,19 +788,15 @@ export class RobinhoodClient {
 
   async getTopMovers(): Promise<Instrument[]> {
     this.requireAuth();
-    const data = (await requestGet(this.session, urls.topMovers())) as {
+    const data = (await requestGet(this._session, urls.topMovers())) as {
       instruments: string[];
     };
-    const results: Instrument[] = [];
-    for (const url of data.instruments ?? []) {
-      results.push(await this.getInstrumentByUrl(url));
-    }
-    return results;
+    return Promise.all((data.instruments ?? []).map((url) => this.getInstrumentByUrl(url)));
   }
 
   async getTopMoversSp500(direction: "up" | "down"): Promise<Instrument[]> {
     this.requireAuth();
-    return (await requestGet(this.session, urls.topMoversSp500(), {
+    return (await requestGet(this._session, urls.topMoversSp500(), {
       dataType: "results",
       params: { direction },
     })) as Instrument[];
@@ -811,19 +804,15 @@ export class RobinhoodClient {
 
   async getTop100(): Promise<Instrument[]> {
     this.requireAuth();
-    const data = (await requestGet(this.session, urls.top100())) as {
+    const data = (await requestGet(this._session, urls.top100())) as {
       instruments: string[];
     };
-    const results: Instrument[] = [];
-    for (const url of data.instruments ?? []) {
-      results.push(await this.getInstrumentByUrl(url));
-    }
-    return results;
+    return Promise.all((data.instruments ?? []).map((url) => this.getInstrumentByUrl(url)));
   }
 
   async findInstruments(query: string): Promise<Instrument[]> {
     this.requireAuth();
-    return (await requestGet(this.session, urls.instruments(), {
+    return (await requestGet(this._session, urls.instruments(), {
       dataType: "results",
       params: { query: query.trim() },
     })) as Instrument[];
@@ -831,14 +820,10 @@ export class RobinhoodClient {
 
   async getAllStocksFromMarketTag(tag: string): Promise<Instrument[]> {
     this.requireAuth();
-    const data = (await requestGet(this.session, urls.tags(tag))) as {
+    const data = (await requestGet(this._session, urls.tags(tag))) as {
       instruments: string[];
     };
-    const results: Instrument[] = [];
-    for (const url of data.instruments ?? []) {
-      results.push(await this.getInstrumentByUrl(url));
-    }
-    return results;
+    return Promise.all((data.instruments ?? []).map((url) => this.getInstrumentByUrl(url)));
   }
 }
 

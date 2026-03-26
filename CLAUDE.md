@@ -64,6 +64,39 @@ await rh.restoreSession();
 - Proper exceptions: `AuthenticationError`, `APIError`
 - **Do NOT use `phoenix.robinhood.com`** — it rejects TLS. Use `api.robinhood.com` endpoints only.
 
+## Streaming (dxFeed WebSocket)
+```typescript
+import { getStreamingManager } from "robinhood-for-agents/streaming";
+
+const streaming = getStreamingManager(client._session);
+
+// One-shot: get ~6 weeks of 5-minute candle history
+const candles = await streaming.getHistoricalCandles("NFLX", {
+  interval: "5m",  // 1m, 2m, 5m, 30m, 1h, 1d
+  from: "30d",     // Date, "30d", "24h", or omit for all available
+});
+
+// Live subscription with configurable buffers
+const sub = await streaming.subscribe("NFLX", {
+  candles: { interval: "5m", maxCandles: 5000 },
+  quotes: true,
+  trades: { maxTrades: 500 },
+  orderBook: { maxDepth: 50 },
+});
+await sub.waitForBackfill();
+sub.on("candle", (c) => console.log(c));
+sub.getCandles();       // CandleEvent[]
+sub.getLatestQuote();   // QuoteEvent | null
+sub.getTrades();        // TradeEvent[]
+await sub.setInterval("1h");  // switch timeframe
+sub.unsubscribe();
+```
+- Data comes from Robinhood's dxLink WebSocket (`wss://api.robinhood.com/marketdata/streaming/legend/v2/`)
+- ~6 weeks of intraday candle backfill (far more than REST API's ~1 week)
+- Buffers are bounded with configurable caps and silent oldest-first eviction
+- `StreamingManager` handles connection, reconnection, and subscription lifecycle
+- One shared WebSocket for all subscriptions (candles, quotes, trades, order book)
+
 ## Authentication
 - Browser login (`robinhood_browser_login`) opens a Chromium-based browser via playwright-core. On macOS, Brave and Chrome are auto-detected; otherwise use `BROWSER_PATH` or `robinhood-for-agents login --chrome /path/to/browser`.
 - Purely passive — Playwright intercepts `/oauth2/token` network traffic, never interacts with the DOM

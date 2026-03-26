@@ -27,22 +27,25 @@ const SENSITIVE_KEYS = new Set([
   "token",
 ]);
 
+/** Recursively scrub a single value (object, array, or primitive). */
+function scrubValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(scrubValue);
+  }
+  if (typeof value === "object" && value !== null) {
+    return scrubSensitiveKeys(value as Record<string, unknown>);
+  }
+  return value;
+}
+
 /** Deep-clone an object, replacing known sensitive key values with [REDACTED]. */
 export function scrubSensitiveKeys(obj: Record<string, unknown>): Record<string, unknown> {
   const scrubbed: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj)) {
     if (SENSITIVE_KEYS.has(key)) {
       scrubbed[key] = REDACTED;
-    } else if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-      scrubbed[key] = scrubSensitiveKeys(value as Record<string, unknown>);
-    } else if (Array.isArray(value)) {
-      scrubbed[key] = value.map((item) =>
-        typeof item === "object" && item !== null && !Array.isArray(item)
-          ? scrubSensitiveKeys(item as Record<string, unknown>)
-          : item,
-      );
     } else {
-      scrubbed[key] = value;
+      scrubbed[key] = scrubValue(value);
     }
   }
   return scrubbed;

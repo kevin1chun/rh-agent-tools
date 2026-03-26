@@ -164,3 +164,66 @@ await rh.cancelStockOrder("order-uuid");
 await rh.cancelOptionOrder("order-uuid");
 await rh.cancelCryptoOrder("order-uuid");
 ```
+
+## Streaming (dxFeed WebSocket)
+
+Real-time market data and deep historical candles via Robinhood's dxLink WebSocket. Provides ~6 weeks of intraday candle history — far more than the REST `getStockHistoricals()` endpoint (~1 week for 5-minute candles).
+
+### Setup
+```typescript
+import { getStreamingManager } from "robinhood-for-agents/streaming";
+
+const streaming = getStreamingManager(client._session);
+```
+
+### `getHistoricalCandles(symbol, opts?): Promise<CandleEvent[]>`
+One-shot: connect, collect backfill, return candles, disconnect.
+```typescript
+const candles = await streaming.getHistoricalCandles("NFLX", {
+  interval: "5m",  // "1m", "2m", "5m", "30m", "1h", "1d"
+  from: "30d",     // Date object, "30d", "24h", or omit for all available
+});
+// => [{ time, open, high, low, close, volume, count, vwap, eventTime }]
+```
+
+### `subscribe(symbol, opts): Promise<Subscription>`
+Live subscription with configurable event types and buffer sizes.
+```typescript
+const sub = await streaming.subscribe("NFLX", {
+  candles: { interval: "5m", from: "30d", maxCandles: 5000 },
+  quotes: true,
+  trades: { maxTrades: 500 },
+  orderBook: { maxDepth: 50 },
+});
+```
+Options can be `boolean` (use defaults) or config objects. Omit to skip that event type.
+
+### Subscription Methods
+```typescript
+// Wait for historical candle backfill to complete
+await sub.waitForBackfill();
+
+// Pull: read accumulated state
+sub.getCandles();             // CandleEvent[] (sorted by time)
+sub.getLatestQuote();         // QuoteEvent | null
+sub.getTrades();              // TradeEvent[] (oldest first)
+sub.getOrderBookSnapshot(20); // OrderBookSnapshot
+
+// Push: event callbacks
+sub.on("candle", (c) => { /* CandleEvent */ });
+sub.on("trade",  (t) => { /* TradeEvent */ });
+sub.on("quote",  (q) => { /* QuoteEvent */ });
+
+// Lifecycle
+await sub.setInterval("1h");  // switch candle timeframe (clears buffer)
+sub.unsubscribe();            // clean up
+```
+
+### Buffer Defaults
+
+| Buffer | Default | Eviction |
+|--------|---------|----------|
+| Candles | 5000 | Oldest first |
+| Trades | 500 | Oldest first |
+| Quote | 1 (latest) | Replace |
+| Order book | 50 levels/side | Depth-limited |
