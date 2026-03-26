@@ -94,6 +94,8 @@ If it throws, follow [setup.md](setup.md) to authenticate.
 | `getAllStockOrders()` / `getOpenStockOrders()` | Trading | View stock orders |
 | `cancelStockOrder(id)` | Trading | Cancel stock order |
 | `getStockOrder(id)` | Trading | Check order fill status |
+| `streaming.getHistoricalCandles(symbol, opts?)` | Streaming | ~6 weeks of candle history via WebSocket |
+| `streaming.subscribe(symbol, opts)` | Streaming | Live candles, quotes, trades, order book |
 
 ## Important Notes
 - **Do NOT use `phoenix.robinhood.com`** — use `api.robinhood.com` endpoints only

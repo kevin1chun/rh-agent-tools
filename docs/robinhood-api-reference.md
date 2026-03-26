@@ -1552,6 +1552,50 @@ console.log(sub.getCandles().length, "candles loaded");
 
 The streaming API provides candle data via the dxFeed `Candle` event type with `fromTime` backfill. Available intervals: `1m`, `2m`, `5m`, `30m`, `1h`, `1d`. Server provides ~6 weeks of history for intraday intervals.
 
+#### Subscription Options
+
+`StreamingManager.subscribe(symbol, opts)` accepts:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `candles` | `CandleOptions \| boolean` | — | Candle subscription config or `true` for defaults |
+| `candles.interval` | string | `"5m"` | Candle period: `1m`, `2m`, `5m`, `30m`, `1h`, `1d` |
+| `candles.from` | `Date \| string` | all available | Start time: Date, `"30d"`, `"24h"` |
+| `candles.maxCandles` | number | 5000 | Buffer capacity (oldest evicted first) |
+| `quotes` | boolean | false | Subscribe to bid/ask quotes |
+| `trades` | `TradeOptions \| boolean` | — | Trade subscription config or `true` for defaults |
+| `trades.maxTrades` | number | 500 | Trade buffer capacity |
+| `orderBook` | `OrderBookOptions \| boolean` | — | L2 order book subscription |
+| `orderBook.maxDepth` | number | 50 | Max levels per side |
+
+#### Subscription Methods
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `waitForBackfill(timeoutMs?)` | `Promise<void>` | Wait for historical candle backfill to complete |
+| `getCandles()` | `CandleEvent[]` | All buffered candles, sorted by time |
+| `getLatestQuote()` | `QuoteEvent \| null` | Most recent quote |
+| `getTrades()` | `TradeEvent[]` | Buffered trades (oldest first) |
+| `getOrderBookSnapshot(depth?)` | `OrderBookSnapshot` | L2 book snapshot |
+| `on(event, cb)` | void | Push callback: `"candle"`, `"trade"`, `"quote"` |
+| `off(event, cb)` | void | Remove callback |
+| `setInterval(interval)` | `Promise<void>` | Switch candle timeframe (clears buffer) |
+| `unsubscribe()` | void | Clean up all subscriptions |
+
+#### CandleEvent Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `time` | number | Candle period start (epoch ms) |
+| `open` | number | Open price |
+| `high` | number | High price |
+| `low` | number | Low price |
+| `close` | number | Close price |
+| `volume` | number | Volume |
+| `count` | number | Trade count |
+| `vwap` | number | Volume-weighted average price |
+| `eventTime` | number | 0 for backfill, real timestamp for live |
+
 ---
 
 ## 9. Markets & Discovery
