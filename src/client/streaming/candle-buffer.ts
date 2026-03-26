@@ -114,7 +114,8 @@ export class CandleBuffer {
   private rebuildIndex(): void {
     this.index.clear();
     for (let i = 0; i < this.items.length; i++) {
-      this.index.set(this.items[i]?.time, i);
+      // biome-ignore lint/style/noNonNullAssertion: index within bounds
+      this.index.set(this.items[i]!.time, i);
     }
   }
 
