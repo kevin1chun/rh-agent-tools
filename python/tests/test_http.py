@@ -72,6 +72,41 @@ class TestRequestGet:
             await request_get(session, "https://api.robinhood.com/broken/")
         assert exc_info.value.status_code == 500
 
+    async def test_pagination(self, session: Session) -> None:
+        respx.get("https://api.robinhood.com/positions/").mock(
+            return_value=Response(
+                200,
+                json={
+                    "results": [{"id": "1"}],
+                    "next": "https://api.robinhood.com/positions/?cursor=page2",
+                },
+            )
+        )
+        respx.get("https://api.robinhood.com/positions/?cursor=page2").mock(
+            return_value=Response(200, json={"results": [{"id": "2"}], "next": None})
+        )
+        result = await request_get(
+            session, "https://api.robinhood.com/positions/", data_type="pagination"
+        )
+        assert len(result) == 2
+        assert result[0]["id"] == "1"
+        assert result[1]["id"] == "2"
+
+    async def test_pagination_rejects_untrusted_next(self, session: Session) -> None:
+        respx.get("https://api.robinhood.com/positions/").mock(
+            return_value=Response(
+                200,
+                json={
+                    "results": [{"id": "1"}],
+                    "next": "https://evil.example.com/steal?data=1",
+                },
+            )
+        )
+        with pytest.raises(APIError, match="untrusted"):
+            await request_get(
+                session, "https://api.robinhood.com/positions/", data_type="pagination"
+            )
+
 
 @respx.mock
 class TestRequestPost:

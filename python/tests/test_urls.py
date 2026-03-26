@@ -8,15 +8,22 @@ from robinhood_agents._urls import (
     cancel_crypto_order,
     cancel_option_order,
     cancel_stock_order,
+    challenge,
     crypto_currency_pairs,
     crypto_holdings,
+    crypto_order,
     crypto_orders,
     fundamental,
+    instrument,
     market_hours,
     news,
     oauth_revoke,
     oauth_token,
+    option_order,
+    portfolio,
     quote,
+    ratings,
+    stock_order,
     tags,
 )
 
@@ -62,3 +69,30 @@ class TestUrlBuilders:
         assert "XNYS" in market_hours("XNYS", "2024-01-15")
         with pytest.raises(ValueError, match="Invalid market"):
             market_hours("../bad", "2024-01-15")
+
+
+class TestSafeSegmentValidation:
+    """All URL builders that interpolate parameters reject path traversal."""
+
+    @pytest.mark.parametrize(
+        "fn,args",
+        [
+            (account, ("../../etc/passwd",)),
+            (portfolio, ("../bad",)),
+            (challenge, ("../bad",)),
+            (quote, ("../bad",)),
+            (instrument, ("../../x",)),
+            (fundamental, ("../x",)),
+            (news, ("../x",)),
+            (ratings, ("../x",)),
+            (stock_order, ("../../x",)),
+            (cancel_stock_order, ("../x",)),
+            (option_order, ("../x",)),
+            (cancel_option_order, ("../x",)),
+            (crypto_order, ("../x",)),
+            (cancel_crypto_order, ("../x",)),
+        ],
+    )
+    def test_rejects_path_traversal(self, fn: object, args: tuple[str, ...]) -> None:
+        with pytest.raises(ValueError, match="Invalid"):
+            fn(*args)  # type: ignore[operator]

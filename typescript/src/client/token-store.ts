@@ -194,7 +194,7 @@ export class EncryptedFileTokenStore implements TokenStore {
     const { writeFile, mkdir } = await import("node:fs/promises");
     const { dirname } = await import("node:path");
     await mkdir(dirname(this.filePath), { recursive: true });
-    await writeFile(this.filePath, JSON.stringify(blob), "utf8");
+    await writeFile(this.filePath, JSON.stringify(blob), { encoding: "utf8", mode: 0o600 });
   }
 
   async delete(): Promise<void> {

@@ -14,11 +14,13 @@ _SAFE_PATH_SEGMENT = re.compile(r"^[a-zA-Z0-9_.:@-]+$")
 
 def trusted_origins() -> frozenset[str]:
     """Trusted Robinhood origins for redirect safety."""
-    return frozenset({
-        "https://api.robinhood.com",
-        "https://nummus.robinhood.com",
-        "https://robinhood.com",
-    })
+    return frozenset(
+        {
+            "https://api.robinhood.com",
+            "https://nummus.robinhood.com",
+            "https://robinhood.com",
+        }
+    )
 
 
 def _safe_segment(value: str, label: str) -> str:
@@ -46,7 +48,7 @@ def oauth_revoke() -> str:
 
 
 def challenge(challenge_id: str) -> str:
-    return f"{API_BASE}/challenge/{challenge_id}/respond/"
+    return f"{API_BASE}/challenge/{_safe_segment(challenge_id, 'challenge_id')}/respond/"
 
 
 def pathfinder_user_machine() -> str:
@@ -54,11 +56,11 @@ def pathfinder_user_machine() -> str:
 
 
 def pathfinder_inquiry(machine_id: str) -> str:
-    return f"{API_BASE}/pathfinder/inquiries/{machine_id}/user_view/"
+    return f"{API_BASE}/pathfinder/inquiries/{_safe_segment(machine_id, 'machine_id')}/user_view/"
 
 
 def push_prompt_status(challenge_id: str) -> str:
-    return f"{API_BASE}/push/{challenge_id}/get_prompts_status/"
+    return f"{API_BASE}/push/{_safe_segment(challenge_id, 'challenge_id')}/get_prompts_status/"
 
 
 # ---------------------------------------------------------------------------
@@ -71,7 +73,7 @@ def accounts() -> str:
 
 
 def account(account_number: str) -> str:
-    return f"{API_BASE}/accounts/{account_number}/"
+    return f"{API_BASE}/accounts/{_safe_segment(account_number, 'account_number')}/"
 
 
 def portfolios() -> str:
@@ -79,11 +81,11 @@ def portfolios() -> str:
 
 
 def portfolio(account_number: str) -> str:
-    return f"{API_BASE}/portfolios/{account_number}/"
+    return f"{API_BASE}/portfolios/{_safe_segment(account_number, 'account_number')}/"
 
 
 def portfolio_historicals(account_number: str) -> str:
-    return f"{API_BASE}/portfolios/historicals/{account_number}/"
+    return f"{API_BASE}/portfolios/historicals/{_safe_segment(account_number, 'account_number')}/"
 
 
 def user() -> str:
@@ -121,7 +123,7 @@ def quotes() -> str:
 
 
 def quote(symbol: str) -> str:
-    return f"{API_BASE}/quotes/{symbol.upper()}/"
+    return f"{API_BASE}/quotes/{_safe_segment(symbol.upper(), 'symbol')}/"
 
 
 def instruments() -> str:
@@ -129,7 +131,7 @@ def instruments() -> str:
 
 
 def instrument(instrument_id: str) -> str:
-    return f"{API_BASE}/instruments/{instrument_id}/"
+    return f"{API_BASE}/instruments/{_safe_segment(instrument_id, 'instrument_id')}/"
 
 
 def fundamentals() -> str:
@@ -137,7 +139,7 @@ def fundamentals() -> str:
 
 
 def fundamental(symbol: str) -> str:
-    return f"{API_BASE}/fundamentals/{symbol.upper()}/"
+    return f"{API_BASE}/fundamentals/{_safe_segment(symbol.upper(), 'symbol')}/"
 
 
 def stock_historicals() -> str:
@@ -145,15 +147,15 @@ def stock_historicals() -> str:
 
 
 def stock_historicals_for(symbol: str) -> str:
-    return f"{API_BASE}/quotes/historicals/{symbol.upper()}/"
+    return f"{API_BASE}/quotes/historicals/{_safe_segment(symbol.upper(), 'symbol')}/"
 
 
 def news(symbol: str) -> str:
-    return f"{API_BASE}/midlands/news/{symbol.upper()}/"
+    return f"{API_BASE}/midlands/news/{_safe_segment(symbol.upper(), 'symbol')}/"
 
 
 def ratings(instrument_id: str) -> str:
-    return f"{API_BASE}/midlands/ratings/{instrument_id}/"
+    return f"{API_BASE}/midlands/ratings/{_safe_segment(instrument_id, 'instrument_id')}/"
 
 
 def earnings() -> str:
@@ -174,7 +176,7 @@ def option_chains() -> str:
 
 
 def option_chain(chain_id: str) -> str:
-    return f"{API_BASE}/options/chains/{chain_id}/"
+    return f"{API_BASE}/options/chains/{_safe_segment(chain_id, 'chain_id')}/"
 
 
 def option_instruments() -> str:
@@ -182,7 +184,7 @@ def option_instruments() -> str:
 
 
 def option_market_data(option_id: str) -> str:
-    return f"{API_BASE}/marketdata/options/{option_id}/"
+    return f"{API_BASE}/marketdata/options/{_safe_segment(option_id, 'option_id')}/"
 
 
 def option_orders() -> str:
@@ -190,7 +192,7 @@ def option_orders() -> str:
 
 
 def option_order(order_id: str) -> str:
-    return f"{API_BASE}/options/orders/{order_id}/"
+    return f"{API_BASE}/options/orders/{_safe_segment(order_id, 'order_id')}/"
 
 
 def option_positions() -> str:
@@ -224,11 +226,11 @@ def crypto_currency_pairs() -> str:
 
 
 def crypto_quote(pair_id: str) -> str:
-    return f"{API_BASE}/marketdata/forex/quotes/{pair_id}/"
+    return f"{API_BASE}/marketdata/forex/quotes/{_safe_segment(pair_id, 'pair_id')}/"
 
 
 def crypto_historicals(pair_id: str) -> str:
-    return f"{API_BASE}/marketdata/forex/historicals/{pair_id}/"
+    return f"{API_BASE}/marketdata/forex/historicals/{_safe_segment(pair_id, 'pair_id')}/"
 
 
 def crypto_holdings() -> str:
@@ -240,7 +242,7 @@ def crypto_orders() -> str:
 
 
 def crypto_order(order_id: str) -> str:
-    return f"{NUMMUS_BASE}/orders/{order_id}/"
+    return f"{NUMMUS_BASE}/orders/{_safe_segment(order_id, 'order_id')}/"
 
 
 def crypto_accounts() -> str:
@@ -257,19 +259,19 @@ def stock_orders() -> str:
 
 
 def stock_order(order_id: str) -> str:
-    return f"{API_BASE}/orders/{order_id}/"
+    return f"{API_BASE}/orders/{_safe_segment(order_id, 'order_id')}/"
 
 
 def cancel_stock_order(order_id: str) -> str:
-    return f"{API_BASE}/orders/{order_id}/cancel/"
+    return f"{API_BASE}/orders/{_safe_segment(order_id, 'order_id')}/cancel/"
 
 
 def cancel_option_order(order_id: str) -> str:
-    return f"{API_BASE}/options/orders/{order_id}/cancel/"
+    return f"{API_BASE}/options/orders/{_safe_segment(order_id, 'order_id')}/cancel/"
 
 
 def cancel_crypto_order(order_id: str) -> str:
-    return f"{NUMMUS_BASE}/orders/{order_id}/cancel/"
+    return f"{NUMMUS_BASE}/orders/{_safe_segment(order_id, 'order_id')}/cancel/"
 
 
 # ---------------------------------------------------------------------------

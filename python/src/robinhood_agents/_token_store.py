@@ -15,9 +15,11 @@ Auto-detection: if ``ROBINHOOD_TOKENS_FILE`` is set, the SDK uses
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import os
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 from time import time
@@ -111,13 +113,18 @@ class TokenStore(Protocol):
 
 
 class KeychainTokenStore:
-    """Store tokens in the OS keychain via the ``keyring`` library."""
+    """Store tokens in the OS keychain via the ``keyring`` library.
+
+    Keyring calls are synchronous and may block (especially on macOS with
+    authorization prompts), so they are dispatched to a thread via
+    ``asyncio.to_thread`` to avoid blocking the event loop.
+    """
 
     async def load(self) -> TokenData | None:
         try:
             import keyring
 
-            raw = keyring.get_password(KEYRING_SERVICE, KEYRING_TOKENS)
+            raw = await asyncio.to_thread(keyring.get_password, KEYRING_SERVICE, KEYRING_TOKENS)
             if raw:
                 data = json.loads(raw)
                 return TokenData.from_dict(data)
@@ -128,13 +135,15 @@ class KeychainTokenStore:
     async def save(self, tokens: TokenData) -> None:
         import keyring
 
-        keyring.set_password(KEYRING_SERVICE, KEYRING_TOKENS, json.dumps(tokens.to_dict()))
+        await asyncio.to_thread(
+            keyring.set_password, KEYRING_SERVICE, KEYRING_TOKENS, json.dumps(tokens.to_dict())
+        )
 
     async def delete(self) -> None:
         try:
             import keyring
 
-            keyring.delete_password(KEYRING_SERVICE, KEYRING_TOKENS)
+            await asyncio.to_thread(keyring.delete_password, KEYRING_SERVICE, KEYRING_TOKENS)
         except Exception:
             pass
 
@@ -170,7 +179,9 @@ def _resolve_encryption_key() -> bytes:
         import keyring
 
         keyring.set_password(
-            KEYRING_SERVICE, KEYRING_ENCRYPTION_KEY, base64.b64encode(key).decode(),
+            KEYRING_SERVICE,
+            KEYRING_ENCRYPTION_KEY,
+            base64.b64encode(key).decode(),
         )
     except Exception:
         pass  # Key lives only in memory this session
@@ -232,6 +243,7 @@ class EncryptedFileTokenStore:
         path = Path(self._file_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(blob), "utf-8")
+        path.chmod(stat.S_IRUSR | stat.S_IWUSR)  # 0600 — owner only
 
     async def delete(self) -> None:
         Path(self._file_path).unlink(missing_ok=True)

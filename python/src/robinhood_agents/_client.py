@@ -544,7 +544,7 @@ class RobinhoodClient:
         stop_price: float | None = None,
         trail_amount: float | None = None,
         trail_type: str | None = None,
-        time_in_force: str | None = None,
+        time_in_force: str = "gfd",
         extended_hours: bool = False,
         account_number: str | None = None,
     ) -> StockOrder:
@@ -588,7 +588,7 @@ class RobinhoodClient:
             "quantity": str(quantity),
             "type": order_type,
             "trigger": trigger,
-            "time_in_force": "gfd" if is_fractional else (time_in_force or "gtc"),
+            "time_in_force": "gfd" if is_fractional else time_in_force,
             "extended_hours": extended_hours,
             "ref_id": str(uuid.uuid4()),
         }
@@ -599,11 +599,12 @@ class RobinhoodClient:
             payload["stop_price"] = str(stop_price)
         if trail_amount is not None:
             t_type = trail_type or "percentage"
-            payload["trailing_peg"] = {
-                "type": t_type,
-                "percentage": str(trail_amount) if t_type != "amount" else None,
-                "price": {"amount": str(trail_amount)} if t_type == "amount" else None,
-            }
+            peg: dict[str, object] = {"type": t_type}
+            if t_type == "amount":
+                peg["price"] = {"amount": str(trail_amount)}
+            else:
+                peg["percentage"] = str(trail_amount)
+            payload["trailing_peg"] = peg
 
         # Market buys get a 5% price collar
         if order_type == "market" and side == "buy" and trigger == "immediate":

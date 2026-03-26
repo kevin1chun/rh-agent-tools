@@ -6,9 +6,11 @@ Token refresh (on 401) is handled automatically via the session's
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import asyncio
+from dataclasses import dataclass, field
 from time import time
 from typing import TYPE_CHECKING
+from urllib.parse import urlencode
 
 import httpx
 
@@ -31,7 +33,8 @@ class AuthState:
 
     tokens: TokenData
     store: TokenStore
-    refreshing: bool = False
+    _refresh_lock: asyncio.Lock = field(default_factory=asyncio.Lock, repr=False)
+    _refresh_task: asyncio.Task[str | None] | None = field(default=None, repr=False)
 
 
 async def _refresh_tokens(state: AuthState) -> str | None:
@@ -60,7 +63,7 @@ async def _refresh_tokens(state: AuthState) -> str | None:
                     "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
                     "X-Robinhood-API-Version": "1.431.4",
                 },
-                content="&".join(f"{k}={v}" for k, v in body.items()),
+                content=urlencode(body),
             )
     except Exception:
         return None
@@ -99,16 +102,22 @@ async def _refresh_tokens(state: AuthState) -> str | None:
 def _create_refresh_callback(
     state: AuthState,
 ) -> Callable[[], Awaitable[str | None]]:
-    """Create a 401-refresh callback with a concurrency guard."""
+    """Create a 401-refresh callback with a concurrency guard.
+
+    Concurrent 401s coalesce onto a single refresh attempt — all waiters
+    get the same result, matching the TypeScript SDK's behaviour.
+    """
 
     async def _refresh() -> str | None:
-        if state.refreshing:
-            return None  # Another refresh is in progress
-        state.refreshing = True
+        async with state._refresh_lock:
+            # If another coroutine already refreshed while we waited, return that result
+            if state._refresh_task is not None:
+                return await state._refresh_task
+            state._refresh_task = asyncio.ensure_future(_refresh_tokens(state))
         try:
-            return await _refresh_tokens(state)
+            return await state._refresh_task
         finally:
-            state.refreshing = False
+            state._refresh_task = None
 
     return _refresh
 
@@ -152,7 +161,12 @@ async def logout(session: Session, state: AuthState | None) -> None:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 await client.post(
                     "https://api.robinhood.com/oauth2/revoke_token/",
-                    content=f"client_id={_CLIENT_ID}&token={state.tokens.access_token}",
+                    content=urlencode(
+                        {
+                            "client_id": _CLIENT_ID,
+                            "token": state.tokens.access_token,
+                        }
+                    ),
                     headers={"Content-Type": "application/x-www-form-urlencoded; charset=utf-8"},
                 )
         except Exception:

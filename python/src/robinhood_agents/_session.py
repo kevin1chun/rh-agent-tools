@@ -16,11 +16,13 @@ DEFAULT_HEADERS: dict[str, str] = {
 _DEFAULT_TIMEOUT = 16.0
 
 # Trusted Robinhood origins for redirect safety.
-_TRUSTED_ORIGINS = frozenset({
-    "https://api.robinhood.com",
-    "https://nummus.robinhood.com",
-    "https://robinhood.com",
-})
+_TRUSTED_ORIGINS = frozenset(
+    {
+        "https://api.robinhood.com",
+        "https://nummus.robinhood.com",
+        "https://robinhood.com",
+    }
+)
 
 
 async def _safe_fetch(
@@ -104,7 +106,11 @@ class Session:
     ) -> httpx.Response:
         """Fetch with single-retry on 401."""
         resp = await _safe_fetch(
-            self._client, method, url, headers=headers, content=content,
+            self._client,
+            method,
+            url,
+            headers=headers,
+            content=content,
             timeout=timeout,
         )
 
@@ -114,7 +120,11 @@ class Session:
                 self._access_token = new_token
                 headers = {**headers, "Authorization": f"Bearer {new_token}"}
                 resp = await _safe_fetch(
-                    self._client, method, url, headers=headers, content=content,
+                    self._client,
+                    method,
+                    url,
+                    headers=headers,
+                    content=content,
                     timeout=timeout,
                 )
 
@@ -123,7 +133,9 @@ class Session:
     async def get(self, url: str, params: dict[str, str] | None = None) -> httpx.Response:
         target = f"{url}?{urlencode(params)}" if params else url
         return await self._fetch_with_retry(
-            "GET", target, headers=self._auth_headers(self._headers),
+            "GET",
+            target,
+            headers=self._auth_headers(self._headers),
         )
 
     async def post(
@@ -153,16 +165,20 @@ class Session:
                 [(k, str(v)) for k, v in (body or {}).items()],
             )
 
-        req_timeout = (
-            httpx.Timeout(timeout) if timeout and timeout != self._timeout else None
-        )
+        req_timeout = httpx.Timeout(timeout) if timeout and timeout != self._timeout else None
         return await self._fetch_with_retry(
-            "POST", url, headers=headers, content=content, timeout=req_timeout,
+            "POST",
+            url,
+            headers=headers,
+            content=content,
+            timeout=req_timeout,
         )
 
     async def delete(self, url: str) -> httpx.Response:
         return await self._fetch_with_retry(
-            "DELETE", url, headers=self._auth_headers(self._headers),
+            "DELETE",
+            url,
+            headers=self._auth_headers(self._headers),
         )
 
     async def close(self) -> None:
