@@ -5,17 +5,19 @@
 [![ClawHub](https://img.shields.io/badge/ClawHub-robinhood--for--agents-blue)](https://clawhub.ai/kevin1chun/robinhood-for-agents)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Robinhood for AI agents — an MCP server with 18 structured tools and a standalone TypeScript client, in a single package.
+Robinhood for AI agents — polyglot monorepo with TypeScript + Python SDKs and an MCP server with 18 tools.
 
 - **18 MCP tools** for any MCP-compatible AI agent
 - **Unified trading skill** for guided workflows (Claude Code, OpenClaw, [ClawHub](https://clawhub.ai/kevin1chun/robinhood-for-agents))
-- **Standalone API client** (~50 async methods) for programmatic use
+- **TypeScript + Python client libraries** (~50 async methods each) for programmatic use
+- **Pluggable token storage** — OS keychain (default) or encrypted file (Docker/headless)
 
 Compatible with **Claude Code**, **Codex**, **OpenClaw**, and any MCP-compatible agent.
 
 ## Prerequisites
 
-- [Bun](https://bun.sh/) v1.0+
+- [Bun](https://bun.sh/) v1.0+ (TypeScript SDK)
+- [Python](https://www.python.org/) 3.12+ and [uv](https://docs.astral.sh/uv/) (Python SDK — optional)
 - Google Chrome (used by `playwright-core` for browser-based login — no bundled browser)
 - A Robinhood account
 
@@ -28,7 +30,7 @@ Compatible with **Claude Code**, **Codex**, **OpenClaw**, and any MCP-compatible
 npx robinhood-for-agents onboard
 ```
 
-The interactive setup detects your agent, registers the MCP server, installs skills (where supported), and walks you through Robinhood login.
+The interactive setup detects your agent, registers the MCP server, installs skills (where supported), and walks you through Robinhood login. It handles both local and Docker deployments — just pick "This machine" or "Docker container / remote host" when prompted.
 
 You can also specify your agent directly:
 
@@ -42,7 +44,7 @@ robinhood-for-agents onboard --agent openclaw
 
 ```bash
 git clone https://github.com/kevin1chun/robinhood-for-agents.git
-cd robinhood-for-agents
+cd robinhood-for-agents/typescript
 bun install
 bun bin/robinhood-for-agents.ts onboard
 ```
@@ -186,9 +188,53 @@ const quotes = await client.getQuotes("AAPL");
 const portfolio = await client.buildHoldings();
 ```
 
+## Docker / Headless Deployment
+
+When deploying in Docker, headless servers, or cloud environments where no OS keychain is available, use the `EncryptedFileTokenStore`:
+
+### Setup
+
+The guided setup handles Docker — pick "Docker container / remote host" when prompted:
+
+```bash
+npx robinhood-for-agents onboard
+```
+
+This will:
+1. Open Chrome for Robinhood login (on the host)
+2. Encrypt tokens and export to `./tokens.enc`
+3. Print the encryption key and env vars to set in your container
+
+### Manual setup
+
+```bash
+# 1. Login on the host
+npx robinhood-for-agents onboard
+
+# 2. In your container, set env vars:
+export ROBINHOOD_TOKENS_FILE=/path/to/tokens.enc
+export ROBINHOOD_TOKEN_KEY=<base64-key-from-step-1>
+```
+
+```yaml
+# docker-compose.yml
+services:
+  agent:
+    image: your-agent-image
+    volumes:
+      - ./tokens.enc:/app/tokens.enc:rw
+    environment:
+      ROBINHOOD_TOKENS_FILE: "/app/tokens.enc"
+      ROBINHOOD_TOKEN_KEY: "${ROBINHOOD_TOKEN_KEY}"
+```
+
+Token refresh writes re-encrypted tokens back to the file automatically.
+
+> **Security warning:** The encrypted file protects against casual disk access (image leaks, accidental exposure) but NOT against a malicious agent with shell access in the container — it can read the env var and decrypt. Only run agents you trust. See [docs/SECURITY.md](docs/SECURITY.md) for the full threat model.
+
 ## Safety
 
-- **Tokens are never exposed to the AI agent** — authentication is handled entirely within the MCP server process; the agent only sees tool results, never access tokens or credentials
+- **Pluggable token storage** — `KeychainTokenStore` (OS keychain, default) or `EncryptedFileTokenStore` (AES-256-GCM, for Docker/headless). See [SECURITY.md](docs/SECURITY.md) for the threat model.
 - Fund transfers and bank operations are **blocked** — never exposed
 - Bulk cancel operations are **blocked**
 - All order placements require explicit parameters (no dangerous defaults)
@@ -197,123 +243,69 @@ const portfolio = await client.buildHoldings();
 
 ## Authentication
 
-**MCP**: Call `robinhood_browser_login` to open Chrome and log in (works with all agents). After that, all tools auto-restore the cached session.
+**Login**: Call `robinhood_browser_login` (MCP) or say "setup robinhood" (skills) to open Chrome. Log in normally with your credentials and MFA. Playwright passively intercepts the OAuth token response — it never clicks buttons or fills forms.
 
-**Skills**: Say "setup robinhood" to trigger the guided browser login (Claude Code and OpenClaw).
+**Token storage** uses pluggable `TokenStore` adapters:
 
-### Full Auth Flow
+| Store | When to use | Config |
+|---|---|---|
+| `KeychainTokenStore` (default) | Local dev, macOS/Linux with desktop | Nothing — works out of the box |
+| `EncryptedFileTokenStore` | Docker, headless servers, CI, cloud | Set `ROBINHOOD_TOKENS_FILE` + `ROBINHOOD_TOKEN_KEY` env vars |
+| Direct `accessToken` | Serverless, testing, short-lived scripts | Pass `accessToken` to constructor or set `ROBINHOOD_ACCESS_TOKEN` env var |
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                                                                         │
-│  robinhood_browser_login              restoreSession()                  │
-│  (first-time / expired)               (every tool call)                │
-│          │                                    │                         │
-│          ▼                                    ▼                         │
-│  ┌───────────────────┐               loadTokens()                      │
-│  │ Playwright launches│               Bun.secrets.get() from           │
-│  │ system Chrome      │               OS keychain                      │
-│  │ (headless: false)  │               (macOS Keychain Services)        │
-│  └────────┬──────────┘                        │                        │
-│           │                                   │                         │
-│           ▼                                   ▼                         │
-│  ┌───────────────────┐               Set Authorization header          │
-│  │ Navigate to        │               Validate: GET /positions/        │
-│  │ robinhood.com/login│                       │                         │
-│  └────────┬──────────┘                  ┌─────┴─────┐                  │
-│           │                           Valid?      Invalid?             │
-│           ▼                             │           │                   │
-│  ┌───────────────────┐            return        ┌──┘                   │
-│  │ User logs in       │           "cached"       │                      │
-│  │ (email, password,  │                          ▼                      │
-│  │  MFA push/SMS)     │              POST /oauth2/token/               │
-│  └────────┬──────────┘              (grant_type: refresh_token,        │
-│           │                          expires_in: 734000)               │
-│           ▼                                 │                           │
-│  ┌───────────────────────────┐       ┌──────┴──────┐                   │
-│  │ Robinhood frontend calls   │    Success?      Failure?             │
-│  │ POST /oauth2/token         │       │              │                  │
-│  │                            │  saveTokens()     throw                │
-│  │ Playwright intercepts:     │  return          AuthError             │
-│  │  request  → device_token   │  "refreshed"     "Use browser_login"  │
-│  │  response → access_token,  │                                        │
-│  │             refresh_token   │                                        │
-│  └────────┬──────────────────┘                                         │
-│           │                                                             │
-│           ▼                                                             │
-│  saveTokens() ──► token-store.ts                                       │
-│           │       Bun.secrets.set() → OS keychain                      │
-│           │       (tokens never written to disk)                       │
-│           │                                                            │
-│           │                                                             │
-│           ▼                                                             │
-│  restoreSession() ──► client ready                                     │
-│  getAccountProfile() → account_hint                                    │
-│  Close browser                                                         │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
+**How it works**: `restoreSession()` loads tokens from the configured `TokenStore`, injects `Authorization: Bearer` headers directly into API requests, and registers automatic token refresh on 401.
+
+```typescript
+import { RobinhoodClient, EncryptedFileTokenStore } from "robinhood-for-agents";
+
+// Default: KeychainTokenStore
+const client = new RobinhoodClient();
+
+// Docker/headless: EncryptedFileTokenStore (auto-detected from ROBINHOOD_TOKENS_FILE env)
+const client = new RobinhoodClient({ tokenStore: new EncryptedFileTokenStore() });
+
+// Direct token (no refresh)
+const client = new RobinhoodClient({ accessToken: "..." });
 ```
 
-The left path is the initial login (browser-based, user-interactive). The right path is the session restore (automatic, every tool call). When the cached access token is invalid, it attempts a silent refresh using the stored `refresh_token` (with `expires_in: 734000` ~8.5 days). If refresh also fails, the user is directed back to browser login.
-
-### Why Browser-Based Auth
-
-The browser login is purely passive — Playwright never clicks buttons, fills forms, or predicts the login flow. It opens a real Chrome window, the user completes login entirely on their own (including whatever MFA Robinhood requires), and Playwright only intercepts the network traffic:
-
-- `page.on("request")` captures `device_token` from POST body to `/oauth2/token`
-- `page.on("response")` captures `access_token` + `refresh_token` from the 200 response
-
-This design is resilient to Robinhood UI changes — it doesn't depend on any DOM selectors, page structure, or login step ordering. As long as the OAuth token endpoint exists, the interception works. `playwright-core` is used (not `playwright`) so no browser binary is bundled — it drives the user's system Chrome.
-
-### Encrypted Token Storage
-
-```
-┌─ token-store.ts ──────────────────────────────────────────────────┐
-│                                                                    │
-│  SAVE                                                              │
-│  ────                                                              │
-│  TokenData (JSON):                                                 │
-│  {access_token, refresh_token, token_type, device_token, saved_at} │
-│         │                                                          │
-│         ▼                                                          │
-│  JSON.stringify()                                                  │
-│         │                                                          │
-│         ▼                                                          │
-│  Bun.secrets.set("robinhood-for-agents", "session-tokens", json)         │
-│  → OS encrypts and stores in keychain                              │
-│  → No file written to disk                                         │
-│                                                                    │
-│                                                                    │
-│  LOAD                                                              │
-│  ────                                                              │
-│  Bun.secrets.get("robinhood-for-agents", "session-tokens")               │
-│         │                                                          │
-│         ▼                                                          │
-│  JSON.parse() → TokenData                                          │
-│                                                                    │
-│                                                                    │
-│  STORAGE                                                           │
-│  ───────                                                           │
-│  OS Keychain via Bun.secrets (no plaintext fallback)               │
-│  ├── macOS: Keychain Services                                      │
-│  ├── Linux: libsecret (GNOME Keyring, KWallet)                    │
-│  └── Windows: Credential Manager                                   │
-│  Tokens never touch the filesystem.                                │
-└────────────────────────────────────────────────────────────────────┘
-```
-
-`Bun.secrets` stores tokens directly in the OS keychain — no intermediate encryption layer needed since the keychain itself provides encryption, access control, and tamper resistance. There is no plaintext fallback; `Bun.secrets` is required.
-
-Critically, **the AI agent never sees authentication tokens**. Token storage and HTTP authorization happen entirely within the MCP server process. The agent only receives structured tool results (quotes, positions, order confirmations) — never raw tokens, headers, or credentials. Even if the agent's conversation is logged or leaked, no secrets are exposed.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full auth flow and [docs/SECURITY.md](docs/SECURITY.md) for the threat model.
 
 ## Development
 
+### TypeScript
+
 ```bash
+cd typescript
 bun install                    # Install deps
 bun run typecheck              # tsc --noEmit
 bun run check                  # Biome lint + format
 npx vitest run                 # Run all tests
 ```
+
+### Python
+
+```bash
+cd python
+uv sync --all-extras           # Install deps
+uv run ruff check .            # Lint
+uv run mypy src/               # Type check
+uv run pytest                  # Run all tests
+```
+
+### Integration tests (verify local setup)
+
+Integration tests hit the real Robinhood API (read-only). Use them to confirm your local dev environment is working end-to-end.
+
+```bash
+# 1. Login (opens Chrome — one-time)
+robinhood-for-agents onboard
+
+# 2. Run integration tests
+cd typescript && bun run test:integration
+cd python && uv run pytest -m integration
+```
+
+These are excluded from CI and the default test commands since they require real credentials.
 
 ## Architecture
 
