@@ -18,11 +18,14 @@ export interface LoginResult {
   method: "keychain" | "encrypted_file" | "token";
 }
 
+const MIN_REFRESH_INTERVAL_MS = 5_000;
+
 /** State held per-client for token management. */
 export interface AuthState {
   tokens: TokenData;
   store: TokenStore;
   refreshing: Promise<string | null> | null;
+  lastRefreshAt: number;
 }
 
 /**
@@ -93,6 +96,11 @@ function createRefreshCallback(state: AuthState): () => Promise<string | null> {
     if (state.refreshing) {
       return state.refreshing;
     }
+    // Rate limit: refuse to refresh if the last attempt was too recent
+    if (Date.now() - state.lastRefreshAt < MIN_REFRESH_INTERVAL_MS) {
+      return null;
+    }
+    state.lastRefreshAt = Date.now();
     state.refreshing = refreshTokens(state).finally(() => {
       state.refreshing = null;
     });
@@ -123,6 +131,7 @@ export async function restoreSession(
     tokens,
     store,
     refreshing: null,
+    lastRefreshAt: 0,
   };
 
   // Register 401 callback for automatic token refresh

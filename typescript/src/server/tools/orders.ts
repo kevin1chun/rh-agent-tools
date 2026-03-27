@@ -14,17 +14,20 @@ export function registerOrderTools(server: McpServer): void {
     {
       symbol: z.string().describe("Stock ticker symbol (e.g. AAPL)."),
       side: z.enum(["buy", "sell"]).describe("Order side."),
-      quantity: z.number().describe("Number of shares (supports fractional)."),
+      quantity: z.number().positive().describe("Number of shares (supports fractional)."),
       limit_price: z
         .number()
+        .positive()
         .optional()
         .describe("Limit price. Required for limit and stop-limit orders."),
       stop_price: z
         .number()
+        .positive()
         .optional()
         .describe("Stop price. Required for stop and stop-limit orders."),
       trail_amount: z
         .number()
+        .positive()
         .optional()
         .describe("Trailing stop amount. Sets order type to trailing stop."),
       trail_type: z
@@ -33,8 +36,8 @@ export function registerOrderTools(server: McpServer): void {
         .describe("Trailing stop type."),
       time_in_force: z
         .enum(["gtc", "gfd"])
-        .default("gtc")
-        .describe("Time in force: good till cancelled or good for day."),
+        .default("gfd")
+        .describe("Time in force: good for day (default, safer) or good till cancelled."),
       extended_hours: z.boolean().default(false).describe("Allow extended hours execution."),
       account_number: z
         .string()
@@ -90,8 +93,11 @@ export function registerOrderTools(server: McpServer): void {
           }),
         )
         .describe("Option legs. Single-leg for simple orders, multiple legs for spreads."),
-      price: z.number().describe("Limit price per contract (single-leg) or net price (spreads)."),
-      quantity: z.number().describe("Number of contracts."),
+      price: z
+        .number()
+        .positive()
+        .describe("Limit price per contract (single-leg) or net price (spreads)."),
+      quantity: z.number().positive().describe("Number of contracts."),
       direction: z
         .enum(["debit", "credit"])
         .describe("Debit for buys/debit spreads, credit for sells/credit spreads."),
@@ -151,13 +157,20 @@ export function registerOrderTools(server: McpServer): void {
     {
       symbol: z.string().describe('Crypto symbol (e.g. "BTC", "ETH").'),
       side: z.enum(["buy", "sell"]).describe("Order side."),
-      amount_or_quantity: z.number().describe("Quantity or dollar amount depending on amount_in."),
+      amount_or_quantity: z
+        .number()
+        .positive()
+        .describe("Quantity or dollar amount depending on amount_in."),
       amount_in: z
         .enum(["quantity", "price"])
         .default("quantity")
         .describe("Whether amount_or_quantity is a coin quantity or dollar amount."),
       order_type: z.enum(["market", "limit"]).default("market").describe("Order type."),
-      limit_price: z.number().optional().describe("Limit price. Required for limit orders."),
+      limit_price: z
+        .number()
+        .positive()
+        .optional()
+        .describe("Limit price. Required for limit orders."),
     },
     async ({ symbol, side, amount_or_quantity, amount_in, order_type, limit_price }) => {
       try {

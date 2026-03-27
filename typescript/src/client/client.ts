@@ -535,6 +535,23 @@ export class RobinhoodClient {
     this.requireAuth();
     const sym = symbol.trim().toUpperCase();
 
+    // Validate numeric bounds
+    if (quantity <= 0 || !Number.isFinite(quantity)) {
+      throw new Error("quantity must be a positive finite number");
+    }
+    if (opts?.limitPrice != null && (opts.limitPrice <= 0 || !Number.isFinite(opts.limitPrice))) {
+      throw new Error("limitPrice must be a positive finite number");
+    }
+    if (opts?.stopPrice != null && (opts.stopPrice <= 0 || !Number.isFinite(opts.stopPrice))) {
+      throw new Error("stopPrice must be a positive finite number");
+    }
+    if (
+      opts?.trailAmount != null &&
+      (opts.trailAmount <= 0 || !Number.isFinite(opts.trailAmount))
+    ) {
+      throw new Error("trailAmount must be a positive finite number");
+    }
+
     // Validate mutually exclusive order params
     if (opts?.trailAmount != null && (opts?.limitPrice != null || opts?.stopPrice != null)) {
       throw new Error("Cannot combine trailAmount with limitPrice or stopPrice");
@@ -586,7 +603,7 @@ export class RobinhoodClient {
       quantity: String(quantity),
       type: orderType,
       trigger,
-      time_in_force: isFractional ? "gfd" : (opts?.timeInForce ?? "gtc"),
+      time_in_force: isFractional ? "gfd" : (opts?.timeInForce ?? "gfd"),
       extended_hours: opts?.extendedHours ?? false,
       ref_id: crypto.randomUUID(),
     };
@@ -594,11 +611,14 @@ export class RobinhoodClient {
     if (opts?.limitPrice != null) payload.price = String(opts.limitPrice);
     if (opts?.stopPrice != null) payload.stop_price = String(opts.stopPrice);
     if (opts?.trailAmount != null) {
-      payload.trailing_peg = {
-        type: opts.trailType ?? "percentage",
-        percentage: opts.trailType === "amount" ? undefined : String(opts.trailAmount),
-        price: opts.trailType === "amount" ? { amount: String(opts.trailAmount) } : undefined,
-      };
+      const pegType = opts.trailType ?? "percentage";
+      const peg: Record<string, unknown> = { type: pegType };
+      if (pegType === "amount") {
+        peg.price = { amount: String(opts.trailAmount) };
+      } else {
+        peg.percentage = String(opts.trailAmount);
+      }
+      payload.trailing_peg = peg;
     }
 
     // Market buys get a 5% price collar
@@ -663,6 +683,15 @@ export class RobinhoodClient {
     this.requireAuth();
     if (legs.length === 0) {
       throw new Error("At least one leg is required");
+    }
+    if (price <= 0 || !Number.isFinite(price)) {
+      throw new Error("price must be a positive finite number");
+    }
+    if (quantity <= 0 || !Number.isFinite(quantity)) {
+      throw new Error("quantity must be a positive finite number");
+    }
+    if (opts?.stopPrice != null && (opts.stopPrice <= 0 || !Number.isFinite(opts.stopPrice))) {
+      throw new Error("stopPrice must be a positive finite number");
     }
 
     // Resolve each leg's option instrument
@@ -754,6 +783,15 @@ export class RobinhoodClient {
     },
   ): Promise<CryptoOrder> {
     this.requireAuth();
+
+    // Validate numeric bounds
+    if (amountOrQuantity <= 0 || !Number.isFinite(amountOrQuantity)) {
+      throw new Error("amountOrQuantity must be a positive finite number");
+    }
+    if (opts?.limitPrice != null && (opts.limitPrice <= 0 || !Number.isFinite(opts.limitPrice))) {
+      throw new Error("limitPrice must be a positive finite number");
+    }
+
     const s = symbol.trim().toUpperCase();
 
     // Look up the currency pair

@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 
 _CLIENT_ID = "c82SH0WZOsabOXGP2sxqcj34FxkvfnWRZBKlBjFS"
 _EXPIRATION_TIME = 734000
+_MIN_REFRESH_INTERVAL = 5.0  # seconds
 
 
 @dataclass
@@ -35,6 +36,7 @@ class AuthState:
     store: TokenStore
     _refresh_lock: asyncio.Lock = field(default_factory=asyncio.Lock, repr=False)
     _refresh_task: asyncio.Task[str | None] | None = field(default=None, repr=False)
+    _last_refresh_at: float = field(default=0.0, repr=False)
 
 
 async def _refresh_tokens(state: AuthState) -> str | None:
@@ -109,10 +111,15 @@ def _create_refresh_callback(
     """
 
     async def _refresh() -> str | None:
+        # Rate limit: refuse to refresh if the last attempt was too recent
+        if time() - state._last_refresh_at < _MIN_REFRESH_INTERVAL:
+            return None
+
         async with state._refresh_lock:
             # If another coroutine already refreshed while we waited, return that result
             if state._refresh_task is not None:
                 return await state._refresh_task
+            state._last_refresh_at = time()
             state._refresh_task = asyncio.ensure_future(_refresh_tokens(state))
         try:
             return await state._refresh_task

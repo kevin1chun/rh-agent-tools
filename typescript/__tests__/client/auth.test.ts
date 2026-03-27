@@ -88,7 +88,7 @@ describe("logout", () => {
   it("clears access token and onUnauthorized", async () => {
     const session = mockSession();
     const store = mockStore();
-    const state: AuthState = { tokens: sampleTokens, store, refreshing: null };
+    const state: AuthState = { tokens: sampleTokens, store, refreshing: null, lastRefreshAt: 0 };
 
     await logout(session, state);
 
@@ -99,7 +99,7 @@ describe("logout", () => {
   it("attempts to revoke token at Robinhood", async () => {
     const session = mockSession();
     const store = mockStore();
-    const state: AuthState = { tokens: sampleTokens, store, refreshing: null };
+    const state: AuthState = { tokens: sampleTokens, store, refreshing: null, lastRefreshAt: 0 };
 
     await logout(session, state);
 
@@ -112,7 +112,7 @@ describe("logout", () => {
   it("deletes from store", async () => {
     const session = mockSession();
     const store = mockStore();
-    const state: AuthState = { tokens: sampleTokens, store, refreshing: null };
+    const state: AuthState = { tokens: sampleTokens, store, refreshing: null, lastRefreshAt: 0 };
 
     await logout(session, state);
 

@@ -102,7 +102,11 @@ async function resolveEncryptionKey(): Promise<Buffer> {
   // 1. Env var
   const envKey = process.env.ROBINHOOD_TOKEN_KEY?.trim();
   if (envKey) {
-    return Buffer.from(envKey, "base64");
+    const key = Buffer.from(envKey, "base64");
+    if (key.length !== KEY_BYTES) {
+      throw new Error(`ROBINHOOD_TOKEN_KEY must decode to ${KEY_BYTES} bytes (got ${key.length})`);
+    }
+    return key;
   }
 
   // 2. Keychain

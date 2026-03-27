@@ -100,4 +100,45 @@ describe("URL builders", () => {
     it("top100", () =>
       expect(urls.top100()).toBe("https://api.robinhood.com/midlands/tags/tag/100-most-popular/"));
   });
+
+  describe("safeSegment rejects path traversal", () => {
+    const cases: Array<[string, (arg: string) => string]> = [
+      ["challenge", urls.challenge],
+      ["pathfinderInquiry", urls.pathfinderInquiry],
+      ["pushPromptStatus", urls.pushPromptStatus],
+      ["account", urls.account],
+      ["portfolio", urls.portfolio],
+      ["portfolioHistoricals", urls.portfolioHistoricals],
+      ["quote", urls.quote],
+      ["instrument", urls.instrument],
+      ["fundamental", urls.fundamental],
+      ["stockHistoricalsFor", urls.stockHistoricalsFor],
+      ["news", urls.news],
+      ["ratings", urls.ratings],
+      ["optionChain", urls.optionChain],
+      ["optionMarketData", urls.optionMarketData],
+      ["optionOrder", urls.optionOrder],
+      ["cryptoQuote", urls.cryptoQuote],
+      ["cryptoHistoricals", urls.cryptoHistoricals],
+      ["cryptoOrder", urls.cryptoOrder],
+      ["stockOrder", urls.stockOrder],
+      ["cancelStockOrder", urls.cancelStockOrder],
+      ["cancelOptionOrder", urls.cancelOptionOrder],
+      ["cancelCryptoOrder", urls.cancelCryptoOrder],
+    ];
+
+    for (const [name, fn] of cases) {
+      it(`${name} rejects ../bad`, () => {
+        expect(() => fn("../bad")).toThrow(/Invalid/);
+      });
+    }
+
+    it("rejects colon in segment", () => {
+      expect(() => urls.account("foo:bar")).toThrow(/Invalid/);
+    });
+
+    it("rejects @ in segment", () => {
+      expect(() => urls.account("foo@bar")).toThrow(/Invalid/);
+    });
+  });
 });

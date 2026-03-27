@@ -551,6 +551,18 @@ class RobinhoodClient:
         self._require_auth()
         sym = symbol.strip().upper()
 
+        # Validate numeric bounds
+        import math
+
+        if quantity <= 0 or not math.isfinite(quantity):
+            raise ValueError("quantity must be a positive finite number")
+        if limit_price is not None and (limit_price <= 0 or not math.isfinite(limit_price)):
+            raise ValueError("limit_price must be a positive finite number")
+        if stop_price is not None and (stop_price <= 0 or not math.isfinite(stop_price)):
+            raise ValueError("stop_price must be a positive finite number")
+        if trail_amount is not None and (trail_amount <= 0 or not math.isfinite(trail_amount)):
+            raise ValueError("trail_amount must be a positive finite number")
+
         # Validate mutually exclusive order params
         if trail_amount is not None and (limit_price is not None or stop_price is not None):
             msg = "Cannot combine trail_amount with limit_price or stop_price"
@@ -657,9 +669,17 @@ class RobinhoodClient:
         account_number: str | None = None,
     ) -> OptionOrder:
         self._require_auth()
+        import math
+
         if not legs:
             msg = "At least one leg is required"
             raise ValueError(msg)
+        if price <= 0 or not math.isfinite(price):
+            raise ValueError("price must be a positive finite number")
+        if quantity <= 0:
+            raise ValueError("quantity must be a positive integer")
+        if stop_price is not None and (stop_price <= 0 or not math.isfinite(stop_price)):
+            raise ValueError("stop_price must be a positive finite number")
 
         resolved_legs = []
         for leg in legs:
@@ -749,6 +769,13 @@ class RobinhoodClient:
         limit_price: float | None = None,
     ) -> CryptoOrder:
         self._require_auth()
+        import math
+
+        if amount_or_quantity <= 0 or not math.isfinite(amount_or_quantity):
+            raise ValueError("amount_or_quantity must be a positive finite number")
+        if limit_price is not None and (limit_price <= 0 or not math.isfinite(limit_price)):
+            raise ValueError("limit_price must be a positive finite number")
+
         s = symbol.strip().upper()
 
         raw = await request_get(self._session, urls.crypto_currency_pairs(), data_type="results")

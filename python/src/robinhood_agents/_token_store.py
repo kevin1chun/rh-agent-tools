@@ -161,7 +161,11 @@ def _resolve_encryption_key() -> bytes:
     # 1. Env var
     env_key = os.environ.get("ROBINHOOD_TOKEN_KEY", "").strip()
     if env_key:
-        return base64.b64decode(env_key)
+        key = base64.b64decode(env_key)
+        if len(key) != _KEY_BYTES:
+            msg = f"ROBINHOOD_TOKEN_KEY must decode to {_KEY_BYTES} bytes (got {len(key)})"
+            raise ValueError(msg)
+        return key
 
     # 2. Keychain
     try:
