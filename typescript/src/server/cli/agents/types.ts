@@ -8,6 +8,7 @@ export interface AgentMeta {
   supportsSkills: boolean;
   installMcp?: (binPath: string) => void;
   installSkills?: (skillsSource: string) => void;
+  workspaceDir?: string;
   postInstallHint: string;
 }
 

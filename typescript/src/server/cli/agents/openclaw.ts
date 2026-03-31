@@ -3,7 +3,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { AgentMeta } from "./types.js";
 
-const SKILLS_DIR = join(homedir(), ".openclaw", "workspace", "skills");
+const WORKSPACE_DIR = join(homedir(), ".openclaw", "workspace");
+const SKILLS_DIR = join(WORKSPACE_DIR, "skills");
 
 function installSkills(skillsSource: string): void {
   mkdirSync(SKILLS_DIR, { recursive: true });
@@ -27,6 +28,7 @@ export const openclaw: AgentMeta = {
   cli: "openclaw",
   supportsSkills: true,
   installSkills,
+  workspaceDir: WORKSPACE_DIR,
   postInstallHint:
     "Restart the OpenClaw gateway to pick up the changes. For MCP tool support, configure @aiwerk/openclaw-mcp-bridge separately.",
 };
