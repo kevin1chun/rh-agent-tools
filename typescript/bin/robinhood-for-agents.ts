@@ -27,6 +27,16 @@ if (args[0] === "onboard" || args[0] === "setup") {
   const mcpOnly = args.includes("--mcp");
   const both = !skillsOnly && !mcpOnly;
 
+  // Parse --agent flag for workspace dep install
+  let agentId: string | undefined;
+  const agentIdx = args.indexOf("--agent");
+  if (agentIdx !== -1 && args[agentIdx + 1]) {
+    agentId = args[agentIdx + 1];
+  } else {
+    const agentFlag = args.find((a) => a.startsWith("--agent="));
+    if (agentFlag) agentId = agentFlag.split("=")[1];
+  }
+
   console.log("robinhood-for-agents install\n");
 
   if (both || mcpOnly) {
@@ -39,7 +49,22 @@ if (args[0] === "onboard" || args[0] === "setup") {
     installSkills(process.cwd());
   }
 
-  if (both) {
+  // Install workspace dependency for agents that need it
+  if (agentId) {
+    const { claudeCode } = await import("../src/server/cli/agents/claude-code.js");
+    const { openclaw } = await import("../src/server/cli/agents/openclaw.js");
+    const { codex } = await import("../src/server/cli/agents/codex.js");
+    const agents = { "claude-code": claudeCode, openclaw, codex } as const;
+    const agent = agents[agentId as keyof typeof agents];
+    if (agent?.workspaceDir) {
+      const { installWorkspaceDep } = await import("../src/server/cli/install-workspace-dep.js");
+      console.log("Installing workspace dependency...");
+      installWorkspaceDep(agent.workspaceDir);
+      console.log("robinhood-for-agents installed in workspace.");
+    }
+  }
+
+  if (both && !agentId) {
     console.log("\nRestart Claude Code to pick up the changes.");
   }
 } else if (args.includes("--help") || args.includes("-h")) {
@@ -52,6 +77,7 @@ Usage:
   robinhood-for-agents install          Install MCP server config + skills (Claude Code)
   robinhood-for-agents install --mcp    Install MCP server config only
   robinhood-for-agents install --skills Install Claude Code skills only
+  robinhood-for-agents install --agent openclaw  Install for a specific agent
   robinhood-for-agents --help           Show this help message`);
 } else {
   const { main } = await import("../src/server/index.js");
