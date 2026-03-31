@@ -7,6 +7,7 @@ import { openclaw } from "./agents/openclaw.js";
 import type { AgentId, AgentMeta } from "./agents/types.js";
 import { AGENTS } from "./agents/types.js";
 import { isCliAvailable } from "./detect.js";
+import { installWorkspaceDep } from "./install-workspace-dep.js";
 
 const agentMap: Record<AgentId, AgentMeta> = {
   "claude-code": claudeCode,
@@ -110,6 +111,20 @@ export async function onboard(preselectedAgent?: AgentId): Promise<void> {
     } catch (err) {
       skillsSpinner.stop("Skills installation failed.");
       p.log.error(err instanceof Error ? err.message : "Unknown error during skills install");
+      // Non-fatal — continue
+    }
+  }
+
+  // --- Install workspace dependency ---
+  if (agent.workspaceDir) {
+    const depSpinner = p.spinner();
+    depSpinner.start("Installing robinhood-for-agents in workspace...");
+    try {
+      installWorkspaceDep(agent.workspaceDir);
+      depSpinner.stop("robinhood-for-agents installed in workspace.");
+    } catch (err) {
+      depSpinner.stop("Workspace dependency install failed.");
+      p.log.error(err instanceof Error ? err.message : "Unknown error during dependency install");
       // Non-fatal — continue
     }
   }
