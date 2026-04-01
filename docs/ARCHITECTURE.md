@@ -35,7 +35,7 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Polyglot monorepo.** `typescript/src/client/` is the TypeScript API client. `typescript/src/server/` is the MCP server that wraps it. `python/src/robinhood_agents/` is the Python API client (async-only). Both SDKs talk directly to Robinhood APIs with Bearer auth -- no intermediate proxy.
+`src/client/` is the TypeScript API client. `src/server/` is the MCP server that wraps it. Both talk directly to Robinhood APIs with Bearer auth -- no intermediate proxy.
 
 ## Tech Stack
 
@@ -377,7 +377,7 @@ limitPrice only             -> ("limit",  "immediate") limit
 none                        -> ("market", "immediate") market
 ```
 
-Market buy orders include a 5% price collar (`preset_percent_limit: "0.05"`).
+Stock order payloads include `order_form_version: 7` (required by the Robinhood API).
 
 ### Safety Model
 

@@ -1,21 +1,14 @@
 # robinhood-for-agents
 
-AI-native Robinhood trading interface — polyglot monorepo with TypeScript + Python SDKs.
+AI-native Robinhood trading interface — MCP server + TypeScript client library.
 
-## Monorepo Structure
-- `typescript/` — TypeScript SDK: MCP server + client library (npm: `robinhood-for-agents`)
-- `python/` — Python SDK: async client library (PyPI: `robinhood-for-agents`)
-- `docs/` — Shared documentation
+## Project Structure
+- `src/client/` — Robinhood API client (~50 async methods)
+- `src/server/` — MCP server with 18 tools
+- `bin/` — CLI entry point (`robinhood-for-agents`)
+- `skills/` — Claude Code skills for interactive use
 
-## TypeScript SDK (`typescript/`)
-
-### Project Structure
-- `typescript/src/client/` — Robinhood API client (~50 async methods)
-- `typescript/src/server/` — MCP server with 18 tools
-- `typescript/bin/` — CLI entry point (`robinhood-for-agents`)
-- `typescript/skills/` — Claude Code skills for interactive use
-
-### Tech Stack
+## Tech Stack
 - **Runtime**: Bun
 - **Language**: TypeScript (strict mode, ESM-only)
 - **MCP SDK**: `@modelcontextprotocol/sdk` v1.12+ (McpServer + StdioServerTransport)
@@ -24,24 +17,23 @@ AI-native Robinhood trading interface — polyglot monorepo with TypeScript + Py
 - **Linting**: Biome v2
 - **Browser Auth**: playwright-core (drives system Chrome, no bundled browser)
 
-### Running the MCP Server
+## Running the MCP Server
 ```bash
-cd typescript && bun install
+bun install
 bun bin/robinhood-for-agents.ts
 ```
 
-### Development
+## Development
 ```bash
-cd typescript
 bun run typecheck   # tsc --noEmit
 bun run check       # biome lint + format
 npx vitest run      # all tests (use vitest, NOT bun test)
 ```
 
-### Skills
-Canonical skill source is `typescript/skills/`. Local `.claude/skills/` contains symlinks for development.
+## Skills
+Canonical skill source is `skills/`. Local `.claude/skills/` contains symlinks for development.
 
-Install MCP server + skills: `bun typescript/bin/robinhood-for-agents.ts install`
+Install MCP server + skills: `bun bin/robinhood-for-agents.ts install`
 
 Skills use three-layer progressive disclosure:
 1. **SKILL.md** — MCP tool orchestration (default)
@@ -51,7 +43,7 @@ Skills use three-layer progressive disclosure:
 Available skills:
 - `robinhood-for-agents` - Unified skill: auth, portfolio, research, trading, options (dual-mode: MCP + client API)
 
-### Client Patterns
+## Client Patterns
 ```typescript
 import { RobinhoodClient, getClient } from "robinhood-for-agents";
 
@@ -71,38 +63,6 @@ await rh.restoreSession();
 - Proper exceptions: `AuthenticationError`, `APIError`
 - **Do NOT use `phoenix.robinhood.com`** — it rejects TLS. Use `api.robinhood.com` endpoints only.
 
-## Python SDK (`python/`)
-
-### Tech Stack
-- **Python**: >=3.12 (PEP 695 generics, `type` statement, `@override`)
-- **HTTP**: httpx (async)
-- **Validation**: Pydantic v2
-- **Auth**: TokenStore adapters (keychain or encrypted file), shared with TypeScript SDK
-- **Testing**: pytest + pytest-asyncio + respx
-- **Linting**: ruff
-- **Type Checking**: mypy --strict
-
-### Development
-```bash
-cd python
-uv sync --all-extras   # install deps
-uv run ruff check .    # lint
-uv run mypy src/       # type check
-uv run pytest          # test
-```
-
-### Client Patterns
-```python
-from robinhood_agents import RobinhoodClient
-
-async with RobinhoodClient() as client:
-    await client.restore_session()
-    quotes = await client.get_quotes("AAPL")
-```
-- All methods are `async` (httpx under the hood)
-- Async-only — target users are AI agents
-- Shares token stores with TypeScript SDK — login once, use from either language
-
 ## Authentication
 - Browser login (`robinhood_browser_login`) opens a Chromium-based browser via playwright-core. On macOS, Brave and Chrome are auto-detected; otherwise use `BROWSER_PATH` or `robinhood-for-agents login --chrome /path/to/browser`.
 - Purely passive — Playwright intercepts `/oauth2/token` network traffic, never interacts with the DOM
@@ -110,7 +70,6 @@ async with RobinhoodClient() as client:
 - Tokens stored in OS keychain (`KeychainTokenStore`, default) or encrypted file (`EncryptedFileTokenStore`, for Docker/headless)
 - `restoreSession()` loads tokens from the configured `TokenStore`, sets Bearer auth on the session, and registers automatic 401 token refresh
 - **Docker / headless:** Use `EncryptedFileTokenStore` — set `ROBINHOOD_TOKENS_FILE` and `ROBINHOOD_TOKEN_KEY` env vars. The `onboard` command can export encrypted tokens for container use.
-- **Python SDK:** Uses the same `TokenStore` adapters. `KeychainTokenStore` (via `keyring`) for local dev, `EncryptedFileTokenStore` (via `cryptography`) for Docker.
 
 ## Safety Rules
 - **NEVER** place bulk cancel operations
@@ -121,27 +80,19 @@ async with RobinhoodClient() as client:
 
 ## Testing
 ```bash
-# TypeScript
-cd typescript && npx vitest run
-
-# Python
-cd python && uv run pytest
+npx vitest run
 ```
-Tests use mocking (vi.mock / respx) for HTTP layer — no real API calls.
+Tests use mocking (vi.mock) for HTTP layer — no real API calls.
 
 ### Integration Tests (local only, requires login)
 ```bash
 # Login first (one-time)
 robinhood-for-agents onboard
 
-# TypeScript
-cd typescript && bun run test:integration
-
-# Python
-cd python && uv run pytest -m integration
+# Run integration tests
+bun run test:integration
 ```
 Integration tests hit the real Robinhood API (read-only). They are excluded from CI and default test runs.
 
 ## Releases
-- TypeScript: tag `ts-v*` → publishes to npm
-- Python: tag `py-v*` → publishes to PyPI
+Tag `v*` → publishes to npm

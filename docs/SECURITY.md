@@ -35,7 +35,7 @@ Two TokenStore adapters are provided:
 
 | Adapter | Backend | Best for |
 |---------|---------|----------|
-| `KeychainTokenStore` | OS keychain (macOS Keychain Services / Linux libsecret) via `Bun.secrets` (TS) or `keyring` (Python) | Local development with a desktop session |
+| `KeychainTokenStore` | OS keychain (macOS Keychain Services / Linux libsecret) via `Bun.secrets` | Local development with a desktop session |
 | `EncryptedFileTokenStore` | AES-256-GCM encrypted file on disk | Docker, headless servers, CI, cloud |
 
 Auto-detection: if `ROBINHOOD_TOKENS_FILE` is set, the SDK uses `EncryptedFileTokenStore`; otherwise it uses `KeychainTokenStore`.
@@ -52,7 +52,7 @@ Auto-detection: if `ROBINHOOD_TOKENS_FILE` is set, the SDK uses `EncryptedFileTo
 
 **What it does NOT protect against:**
 
-- **Same-user processes with shell access** — `Bun.secrets` / `keyring` do not use per-access biometric authentication (e.g., `kSecAccessControlUserPresence` on macOS). Once the user grants `bun` or `python` keychain access, any process running as that user can read tokens silently. On Linux, GNOME Keyring unlocks at login and stays open for the session.
+- **Same-user processes with shell access** — `Bun.secrets` does not use per-access biometric authentication (e.g., `kSecAccessControlUserPresence` on macOS). Once the user grants `bun` keychain access, any process running as that user can read tokens silently. On Linux, GNOME Keyring unlocks at login and stays open for the session.
 
 This is a property of the OS keychain model, not a bug in this project. It is the strongest practical option for local development.
 
@@ -215,6 +215,4 @@ The previous architecture used a host-side auth proxy (`127.0.0.1:3100`) that in
 | Token refresh | Proxy handled it | Client handles it on 401 |
 | Container isolation | Strong — tokens physically absent | Weaker — encrypted tokens present |
 | Operational complexity | Higher — proxy process, proxy token, port forwarding | Lower — single env var + file |
-| Python SDK auth | Proxy-mediated | Native (same TokenStore adapters) |
-
 The auth proxy provided stronger isolation for Docker deployments at the cost of operational complexity. The TokenStore approach trades some container isolation for simplicity, with the explicit understanding that **Docker deployments rely on trusting the agent** rather than on cryptographic isolation.

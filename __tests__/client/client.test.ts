@@ -359,6 +359,7 @@ describe("RobinhoodClient", () => {
         expect.objectContaining({
           payload: expect.objectContaining({
             account: "https://api.robinhood.com/accounts/123/",
+            order_form_version: 7,
           }),
         }),
       );

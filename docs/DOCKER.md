@@ -123,8 +123,3 @@ To revoke immediately, delete the encrypted file on the host:
 rm ~/.robinhood-for-agents/tokens.enc
 ```
 
----
-
-## Python SDK
-
-The Python SDK uses the same `EncryptedFileTokenStore` adapter. Set the same two env vars (`ROBINHOOD_TOKENS_FILE` and `ROBINHOOD_TOKEN_KEY`) and the Python client auto-detects the file-based store. Both SDKs can share the same encrypted token file.

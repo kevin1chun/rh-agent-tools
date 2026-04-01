@@ -7,11 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  typescript:
+  build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: typescript
     steps:
       - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
@@ -19,23 +16,3 @@ jobs:
       - run: bun run check
       - run: bun run typecheck
       - run: npx vitest run
-
-  python:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.12", "3.13"]
-    defaults:
-      run:
-        working-directory: python
-    steps:
-      - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v5
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-      - run: uv sync --all-extras
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
-      - run: uv run mypy src/
-      - run: uv run pytest

@@ -1,7 +1,7 @@
-name: Release TypeScript
+name: Release
 on:
   push:
-    tags: ["ts-v*"]
+    tags: ["v*"]
 
 jobs:
   release:
@@ -9,9 +9,6 @@ jobs:
     permissions:
       contents: write      # create GitHub Release
       id-token: write      # npm provenance
-    defaults:
-      run:
-        working-directory: typescript
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
