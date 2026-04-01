@@ -2,13 +2,13 @@
 
 ## Adding a New MCP Tool
 
-1. Identify which `packages/server/src/tools/` file it belongs in (or create a new one)
+1. Identify which `src/server/tools/` file it belongs in (or create a new one)
 2. Import `{ getAuthenticatedRh, text }` from `./_helpers.js`
 3. Register with `server.tool(name, description, zodSchema, handler)`
 4. Define the input schema with Zod — MCP uses these for the tool schema
 5. Wrap the handler body in try/catch, return `text({ error: String(e) })` on failure
 6. If a new file, import and call its `register*Tools(server)` in `server.ts`
-7. Add tests in `packages/server/__tests__/tools.test.ts`
+7. Add tests in `__tests__/server/tools.test.ts`
 
 Example:
 
@@ -39,23 +39,23 @@ export function registerNewTools(server: McpServer): void {
 
 ## Creating a New Skill
 
-1. Create `.claude/skills/robinhood-<name>/SKILL.md` with:
+1. Create `skills/robinhood-<name>/SKILL.md` with:
    - YAML frontmatter (`name`, `description`)
    - Trigger phrases
    - Step-by-step instructions for Claude
    - Code patterns to follow
-2. Create `.claude/skills/robinhood-<name>/reference.md` with API details
+2. Create `skills/robinhood-<name>/reference.md` with API details
 3. Keep SKILL.md under 500 lines
 
 ## Adding Client Methods
 
-1. Define a Zod schema in `packages/client/src/types.ts` (use `.passthrough()`)
-2. Add a URL builder in `packages/client/src/urls.ts` if needed
-3. Implement the method in `packages/client/src/client.ts`:
+1. Define a Zod schema in `src/client/types.ts` (use `.passthrough()`)
+2. Add a URL builder in `src/client/urls.ts` if needed
+3. Implement the method in `src/client/client.ts`:
    - Use `parseOne(Schema, data)` or `parseArray(Schema, data)` for return values
    - Use typed return signatures (e.g. `Promise<Quote[]>`, not `Promise<unknown[]>`)
-4. Export the new type from `packages/client/src/index.ts`
-5. Add tests in `packages/client/__tests__/` using `vi.mock("../src/http.js")`
+4. Export the new type from `src/client/index.ts`
+5. Add tests in `__tests__/client/` using `vi.mock("../src/http.js")`
 
 ## Testing
 
