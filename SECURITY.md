@@ -23,7 +23,7 @@ You will receive an acknowledgment within 48 hours and a detailed response withi
 
 **In scope:**
 - Token or credential leakage
-- Encryption weaknesses in session storage (`~/.robinhood-for-agents/session.enc`)
+- Encryption weaknesses in token storage (`~/.robinhood-for-agents/tokens.enc`)
 - Unauthorized order execution or account access
 - Bypassing safety controls (blocked operations, parameter validation)
 

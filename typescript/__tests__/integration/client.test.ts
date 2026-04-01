@@ -1,15 +1,14 @@
 /**
- * Integration tests — hit the real Robinhood API via the auth proxy.
+ * Integration tests — hit the real Robinhood API via TokenStore auth.
  *
  * Prerequisites:
- *   1. Login: robinhood-for-agents login
- *   2. Proxy: robinhood-for-agents proxy
+ *   1. Login: robinhood-for-agents onboard
  *
  * Run: bun run test:integration
  *
  * Uses Bun's test runner (not Vitest) because Bun.secrets is needed
- * to load the proxy token from the OS keychain. Vitest runs in Node
- * where Bun.secrets is unavailable.
+ * to load tokens from the OS keychain. Vitest runs in Node where
+ * Bun.secrets is unavailable.
  */
 
 import { beforeAll, describe, expect, it } from "bun:test";
@@ -22,7 +21,7 @@ describe("integration: RobinhoodClient", () => {
     await client.restoreSession();
   });
 
-  it("authenticates via proxy", () => {
+  it("authenticates via TokenStore", () => {
     expect(client.isLoggedIn).toBe(true);
   });
 

@@ -1,8 +1,7 @@
-"""Integration tests — hit the real Robinhood API via the auth proxy.
+"""Integration tests — hit the real Robinhood API via TokenStore auth.
 
 Prerequisites:
-    1. Login: robinhood-for-agents login
-    2. Proxy: robinhood-for-agents proxy
+    1. Login: robinhood-for-agents onboard
 
 Run: uv run pytest -m integration
 """
