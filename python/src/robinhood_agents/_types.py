@@ -385,28 +385,80 @@ class TrailingPeg(_Base):
     price: TrailingPegPrice | None = None
 
 
+class Notional(_Base):
+    amount: str | None = None
+    currency_code: str | None = None
+    currency_id: str | None = None
+
+
 class StockOrder(_Base):
     id: str
+    ref_id: str | None = None
+    url: str | None = None
     cancel: str | None = None
+    account: str | None = None
+    user_uuid: str | None = None
+    position: str | None = None
+    instrument: str | None = None
+    instrument_id: str | None = None
+    symbol: str | None = None
     state: str
+    derived_state: str | None = None
     side: str | None = None
-    quantity: str | None = None
-    price: str | None = None
-    average_price: str | None = None
     type: str | None = None
     trigger: str | None = None
+    quantity: str | None = None
+    price: str | None = None
     stop_price: str | None = None
+    average_price: str | None = None
+    cumulative_quantity: str | None = None
     time_in_force: str | None = None
-    instrument: str | None = None
+    extended_hours: bool | None = None
+    market_hours: str | None = None
+    fees: str | None = None
+    sec_fees: str | None = None
+    taf_fees: str | None = None
+    cat_fees: str | None = None
+    sales_taxes: list[dict[str, object]] | None = None
     executions: list[dict[str, object]] | None = None
+    total_notional: Notional | None = None
+    executed_notional: Notional | None = None
+    dollar_based_amount: str | None = None
+    requested_notional_amount: str | None = None
+    trailing_peg: TrailingPeg | None = None
+    last_trail_price: str | None = None
+    last_trail_price_source: str | None = None
+    last_trail_price_updated_at: str | None = None
+    preset_percent_limit: str | None = None
+    order_form_version: int | None = None
+    order_form_type: str | None = None
+    last_transaction_at: str | None = None
+    last_update_version: int | None = None
     created_at: str | None = None
     updated_at: str | None = None
-    last_transaction_at: str | None = None
-    cumulative_quantity: str | None = None
-    fees: str | None = None
-    extended_hours: bool | None = None
-    trailing_peg: TrailingPeg | None = None
-    ref_id: str | None = None
+    stop_triggered_at: str | None = None
+    reject_reason: str | None = None
+    response_category: str | None = None
+    placed_agent: str | None = None
+    position_effect: str | None = None
+    replaces: str | None = None
+    pending_cancel_open_agent: str | None = None
+    user_cancel_request_state: str | None = None
+    tax_lot_selection_type: str | None = None
+    override_dtbp_checks: bool | None = None
+    override_day_trade_checks: bool | None = None
+    investment_schedule_id: str | None = None
+    is_ipo_access_order: bool | None = None
+    is_ipo_access_price_finalized: bool | None = None
+    has_ipo_access_custom_price_limit: bool | None = None
+    ipo_access_cancellation_reason: str | None = None
+    ipo_access_lower_collared_price: str | None = None
+    ipo_access_upper_collared_price: str | None = None
+    ipo_access_upper_price: str | None = None
+    ipo_access_lower_price: str | None = None
+    is_visible_to_user: bool | None = None
+    is_primary_account: bool | None = None
+    is_editable: bool | None = None
 
 
 # ---------------------------------------------------------------------------

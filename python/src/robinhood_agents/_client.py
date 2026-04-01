@@ -618,9 +618,7 @@ class RobinhoodClient:
                 peg["percentage"] = str(trail_amount)
             payload["trailing_peg"] = peg
 
-        # Market buys get a 5% price collar
-        if order_type == "market" and side == "buy" and trigger == "immediate":
-            payload["preset_percent_limit"] = "0.05"
+        payload["order_form_version"] = 7
 
         raw = await request_post(self._session, urls.stock_orders(), payload=payload, as_json=True)
         return StockOrder.model_validate(raw)

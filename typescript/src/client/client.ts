@@ -621,10 +621,7 @@ export class RobinhoodClient {
       payload.trailing_peg = peg;
     }
 
-    // Market buys get a 5% price collar
-    if (orderType === "market" && side === "buy" && trigger === "immediate") {
-      payload.preset_percent_limit = "0.05";
-    }
+    payload.order_form_version = 7;
 
     return (await requestPost(this.session, urls.stockOrders(), {
       payload,

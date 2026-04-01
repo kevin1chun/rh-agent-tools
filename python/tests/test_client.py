@@ -163,7 +163,7 @@ class TestOrderStockPayload:
         assert body["trigger"] == "immediate"
         assert body["time_in_force"] == "gfd"
         assert body["side"] == "buy"
-        assert body["preset_percent_limit"] == "0.05"  # market buy collar
+        assert "preset_percent_limit" not in body
 
     @respx.mock
     async def test_limit_order_payload(self) -> None:
