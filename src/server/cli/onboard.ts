@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { resolve } from "node:path";
 import * as p from "@clack/prompts";
 import { loadTokens } from "../../client/token-store.js";
@@ -217,6 +218,22 @@ export async function onboard(preselectedAgent?: AgentId): Promise<void> {
 // Deployment helpers
 // ---------------------------------------------------------------------------
 
+/** Copy text to the OS clipboard. Throws if clipboard is unavailable. */
+function copyToClipboard(text: string): void {
+  const platform = process.platform;
+  if (platform === "darwin") {
+    execSync("pbcopy", { input: text, stdio: ["pipe", "pipe", "pipe"] });
+  } else if (platform === "linux") {
+    try {
+      execSync("xclip -selection clipboard", { input: text, stdio: ["pipe", "pipe", "pipe"] });
+    } catch {
+      execSync("xsel --clipboard --input", { input: text, stdio: ["pipe", "pipe", "pipe"] });
+    }
+  } else {
+    throw new Error(`Clipboard not supported on platform: ${platform}`);
+  }
+}
+
 async function exportEncryptedTokens(): Promise<void> {
   const { EncryptedFileTokenStore, KeychainTokenStore } = await import(
     "../../client/token-store.js"
@@ -246,17 +263,32 @@ async function exportEncryptedTokens(): Promise<void> {
     }
   }
 
+  if (!encKey) {
+    spinner.stop("Error: Could not retrieve encryption key.");
+    process.exit(1);
+  }
+
+  // Copy key to clipboard instead of printing it
+  try {
+    copyToClipboard(encKey);
+  } catch {
+    spinner.stop("Error: Cannot copy encryption key to clipboard.");
+    p.log.error("Install pbcopy (macOS) or xclip/xsel (Linux) and retry.");
+    process.exit(1);
+  }
+
   spinner.stop(`Tokens encrypted to ${outputPath}`);
 
-  p.log.step("Your encryption key:");
-  p.log.message(`  ${encKey}`);
+  p.log.success("Encryption key copied to clipboard. Paste it into your Docker config.");
 
   p.log.step("Set these env vars in your container:");
-  p.log.message(`  ROBINHOOD_TOKENS_FILE=/app/tokens.enc\n  ROBINHOOD_TOKEN_KEY=${encKey}`);
+  p.log.message(
+    "  ROBINHOOD_TOKENS_FILE=/app/tokens.enc\n  ROBINHOOD_TOKEN_KEY=<paste from clipboard>",
+  );
 
   p.log.step("docker-compose.yml example:");
   p.log.message(
-    `  services:\n    agent:\n      volumes:\n        - ./tokens.enc:/app/tokens.enc:rw\n      environment:\n        ROBINHOOD_TOKENS_FILE: "/app/tokens.enc"\n        ROBINHOOD_TOKEN_KEY: "${encKey}"`,
+    '  services:\n    agent:\n      volumes:\n        - ./tokens.enc:/app/tokens.enc:rw\n      environment:\n        ROBINHOOD_TOKENS_FILE: "/app/tokens.enc"\n        ROBINHOOD_TOKEN_KEY: "<paste from clipboard>"',
   );
 
   p.log.warn(

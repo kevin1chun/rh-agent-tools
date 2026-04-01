@@ -120,14 +120,14 @@ const spx = await rh.getIndexValue("SPX");
 
 **Safety**: Always confirm with the user before calling any order method.
 
-### `orderStock(symbol, side, quantity, opts?)`
+### `orderStock(symbol, side, quantity, opts)`
 ```typescript
-await rh.orderStock("AAPL", "buy", 10);                          // market
-await rh.orderStock("AAPL", "buy", 10, { limitPrice: 150.0 });   // limit
-await rh.orderStock("AAPL", "sell", 10, { stopPrice: 145.0, limitPrice: 144.0 }); // stop-limit
-await rh.orderStock("AAPL", "sell", 10, { trailAmount: 5, trailType: "percentage" }); // trailing stop
+await rh.orderStock("AAPL", "buy", 10, { timeInForce: "gfd" });                          // market
+await rh.orderStock("AAPL", "buy", 10, { limitPrice: 150.0, timeInForce: "gfd" });       // limit
+await rh.orderStock("AAPL", "sell", 10, { stopPrice: 145.0, limitPrice: 144.0, timeInForce: "gfd" }); // stop-limit
+await rh.orderStock("AAPL", "sell", 10, { trailAmount: 5, trailType: "percentage", timeInForce: "gfd" }); // trailing stop
 ```
-Options: `{ limitPrice, stopPrice, trailAmount, trailType, accountNumber, timeInForce, extendedHours }`
+Options: `{ limitPrice, stopPrice, trailAmount, trailType, accountNumber, timeInForce (required), extendedHours }`
 
 ### `orderOption(symbol, legs, price, quantity, direction, opts?)`
 ```typescript

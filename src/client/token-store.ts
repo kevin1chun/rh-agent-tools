@@ -125,7 +125,11 @@ async function resolveEncryptionKey(): Promise<Buffer> {
   try {
     await Bun.secrets.set(KEYRING_SERVICE, KEYRING_ENCRYPTION_KEY, key.toString("base64"));
   } catch {
-    // Keychain unavailable — key lives only in memory this session
+    console.error(
+      "Warning: encryption key generated but could not be saved to keychain. " +
+        "Tokens encrypted this session will be unreadable after the process exits. " +
+        "Set ROBINHOOD_TOKEN_KEY env var to persist the key.",
+    );
   }
   return key;
 }

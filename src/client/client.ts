@@ -183,12 +183,10 @@ export class RobinhoodClient {
 
     if (positions.length === 0) return {};
 
-    // Resolve instruments and quotes in parallel per position
-    const instruments: Instrument[] = [];
-    for (const pos of positions) {
-      const inst = await this.getInstrumentByUrl(pos.instrument);
-      instruments.push(inst);
-    }
+    // Resolve instruments in parallel
+    const instruments = await Promise.all(
+      positions.map((pos) => this.getInstrumentByUrl(pos.instrument)),
+    );
 
     const symbolList = instruments.map((i) => i.symbol);
     const quotes = await this.getQuotes(symbolList);
@@ -603,7 +601,13 @@ export class RobinhoodClient {
       quantity: String(quantity),
       type: orderType,
       trigger,
-      time_in_force: isFractional ? "gfd" : (opts?.timeInForce ?? "gfd"),
+      time_in_force: isFractional
+        ? "gfd"
+        : (() => {
+            if (!opts?.timeInForce)
+              throw new Error("timeInForce is required for non-fractional stock orders");
+            return opts.timeInForce;
+          })(),
       extended_hours: opts?.extendedHours ?? false,
       ref_id: crypto.randomUUID(),
     };
@@ -816,6 +820,8 @@ export class RobinhoodClient {
         // Use limitPrice to derive quantity from dollar amount
         payload.quantity = String(amountOrQuantity / opts.limitPrice);
       } else {
+        // For dollar-amount market orders, Robinhood's crypto API accepts `price`
+        // as the dollar amount to spend. The API converts it to quantity at execution.
         payload.price = String(amountOrQuantity);
       }
     }

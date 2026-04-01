@@ -1,5 +1,7 @@
 /** HTTP session wrapper for Robinhood API using native fetch. */
 
+import { trustedOrigins } from "./urls.js";
+
 export const DEFAULT_HEADERS: Record<string, string> = {
   Accept: "*/*",
   "Accept-Language": "en-US,en;q=1",
@@ -9,13 +11,6 @@ export const DEFAULT_HEADERS: Record<string, string> = {
 };
 
 const DEFAULT_TIMEOUT_MS = 16_000;
-
-/** Trusted Robinhood origins for redirect safety. */
-const TRUSTED_ORIGINS = new Set([
-  "https://api.robinhood.com",
-  "https://nummus.robinhood.com",
-  "https://robinhood.com",
-]);
 
 /**
  * Follow redirects manually, refusing to send auth headers to untrusted hosts.
@@ -41,7 +36,7 @@ async function safeFetch(
     // Resolve relative redirects
     const resolved = new URL(location, currentUrl).href;
     const target = new URL(resolved);
-    if (!TRUSTED_ORIGINS.has(target.origin)) {
+    if (!trustedOrigins().has(target.origin)) {
       throw new Error(`Refusing redirect to untrusted host: ${target.hostname}`);
     }
     currentUrl = resolved;
