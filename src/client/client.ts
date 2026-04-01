@@ -5,11 +5,16 @@
  * Multi-account is first-class: account-scoped methods accept `accountNumber`.
  */
 
-import type { LoginResult } from "./auth.js";
-import { logout as logoutFn, restoreSession as restoreSessionFn } from "./auth.js";
+import type { AuthState, LoginResult } from "./auth.js";
+import {
+  logout as logoutFn,
+  restoreSession as restoreSessionFn,
+  restoreSessionFromToken,
+} from "./auth.js";
 import { NotFoundError, NotLoggedInError } from "./errors.js";
 import { requestGet, requestPost } from "./http.js";
 import { createSession, type RobinhoodSession } from "./session.js";
+import { createTokenStore, type TokenStore } from "./token-store.js";
 import type {
   Account,
   CryptoOrder,
@@ -46,11 +51,20 @@ const MULTI_ACCOUNT_PARAMS: Record<string, string> = {
 
 export class RobinhoodClient {
   private session: RobinhoodSession;
+  private tokenStore: TokenStore;
+  private authState: AuthState | null = null;
   private _loggedIn = false;
   private _indexCache: Map<string, IndexInstrument> | null = null;
 
-  constructor(opts?: { timeoutMs?: number }) {
+  constructor(opts?: { tokenStore?: TokenStore; accessToken?: string; timeoutMs?: number }) {
     this.session = createSession(opts);
+    this.tokenStore = opts?.tokenStore ?? createTokenStore();
+
+    // Direct access token — no store, no refresh
+    if (opts?.accessToken) {
+      restoreSessionFromToken(this.session, opts.accessToken);
+      this._loggedIn = true;
+    }
   }
 
   get isLoggedIn(): boolean {
@@ -62,13 +76,15 @@ export class RobinhoodClient {
   // ---------------------------------------------------------------------------
 
   async restoreSession(): Promise<LoginResult> {
-    const result = await restoreSessionFn(this.session);
+    const { result, state } = await restoreSessionFn(this.session, this.tokenStore);
+    this.authState = state;
     this._loggedIn = true;
     return result;
   }
 
   async logout(): Promise<void> {
-    await logoutFn(this.session);
+    await logoutFn(this.session, this.authState);
+    this.authState = null;
     this._loggedIn = false;
   }
 
@@ -167,12 +183,10 @@ export class RobinhoodClient {
 
     if (positions.length === 0) return {};
 
-    // Resolve instruments and quotes in parallel per position
-    const instruments: Instrument[] = [];
-    for (const pos of positions) {
-      const inst = await this.getInstrumentByUrl(pos.instrument);
-      instruments.push(inst);
-    }
+    // Resolve instruments in parallel
+    const instruments = await Promise.all(
+      positions.map((pos) => this.getInstrumentByUrl(pos.instrument)),
+    );
 
     const symbolList = instruments.map((i) => i.symbol);
     const quotes = await this.getQuotes(symbolList);
@@ -519,6 +533,23 @@ export class RobinhoodClient {
     this.requireAuth();
     const sym = symbol.trim().toUpperCase();
 
+    // Validate numeric bounds
+    if (quantity <= 0 || !Number.isFinite(quantity)) {
+      throw new Error("quantity must be a positive finite number");
+    }
+    if (opts?.limitPrice != null && (opts.limitPrice <= 0 || !Number.isFinite(opts.limitPrice))) {
+      throw new Error("limitPrice must be a positive finite number");
+    }
+    if (opts?.stopPrice != null && (opts.stopPrice <= 0 || !Number.isFinite(opts.stopPrice))) {
+      throw new Error("stopPrice must be a positive finite number");
+    }
+    if (
+      opts?.trailAmount != null &&
+      (opts.trailAmount <= 0 || !Number.isFinite(opts.trailAmount))
+    ) {
+      throw new Error("trailAmount must be a positive finite number");
+    }
+
     // Validate mutually exclusive order params
     if (opts?.trailAmount != null && (opts?.limitPrice != null || opts?.stopPrice != null)) {
       throw new Error("Cannot combine trailAmount with limitPrice or stopPrice");
@@ -570,7 +601,13 @@ export class RobinhoodClient {
       quantity: String(quantity),
       type: orderType,
       trigger,
-      time_in_force: isFractional ? "gfd" : (opts?.timeInForce ?? "gtc"),
+      time_in_force: isFractional
+        ? "gfd"
+        : (() => {
+            if (!opts?.timeInForce)
+              throw new Error("timeInForce is required for non-fractional stock orders");
+            return opts.timeInForce;
+          })(),
       extended_hours: opts?.extendedHours ?? false,
       ref_id: crypto.randomUUID(),
     };
@@ -578,17 +615,17 @@ export class RobinhoodClient {
     if (opts?.limitPrice != null) payload.price = String(opts.limitPrice);
     if (opts?.stopPrice != null) payload.stop_price = String(opts.stopPrice);
     if (opts?.trailAmount != null) {
-      payload.trailing_peg = {
-        type: opts.trailType ?? "percentage",
-        percentage: opts.trailType === "amount" ? undefined : String(opts.trailAmount),
-        price: opts.trailType === "amount" ? { amount: String(opts.trailAmount) } : undefined,
-      };
+      const pegType = opts.trailType ?? "percentage";
+      const peg: Record<string, unknown> = { type: pegType };
+      if (pegType === "amount") {
+        peg.price = { amount: String(opts.trailAmount) };
+      } else {
+        peg.percentage = String(opts.trailAmount);
+      }
+      payload.trailing_peg = peg;
     }
 
-    // Market buys get a 5% price collar
-    if (orderType === "market" && side === "buy" && trigger === "immediate") {
-      payload.preset_percent_limit = "0.05";
-    }
+    payload.order_form_version = 7;
 
     return (await requestPost(this.session, urls.stockOrders(), {
       payload,
@@ -647,6 +684,15 @@ export class RobinhoodClient {
     this.requireAuth();
     if (legs.length === 0) {
       throw new Error("At least one leg is required");
+    }
+    if (price <= 0 || !Number.isFinite(price)) {
+      throw new Error("price must be a positive finite number");
+    }
+    if (quantity <= 0 || !Number.isFinite(quantity)) {
+      throw new Error("quantity must be a positive finite number");
+    }
+    if (opts?.stopPrice != null && (opts.stopPrice <= 0 || !Number.isFinite(opts.stopPrice))) {
+      throw new Error("stopPrice must be a positive finite number");
     }
 
     // Resolve each leg's option instrument
@@ -738,6 +784,15 @@ export class RobinhoodClient {
     },
   ): Promise<CryptoOrder> {
     this.requireAuth();
+
+    // Validate numeric bounds
+    if (amountOrQuantity <= 0 || !Number.isFinite(amountOrQuantity)) {
+      throw new Error("amountOrQuantity must be a positive finite number");
+    }
+    if (opts?.limitPrice != null && (opts.limitPrice <= 0 || !Number.isFinite(opts.limitPrice))) {
+      throw new Error("limitPrice must be a positive finite number");
+    }
+
     const s = symbol.trim().toUpperCase();
 
     // Look up the currency pair
@@ -765,6 +820,8 @@ export class RobinhoodClient {
         // Use limitPrice to derive quantity from dollar amount
         payload.quantity = String(amountOrQuantity / opts.limitPrice);
       } else {
+        // For dollar-amount market orders, Robinhood's crypto API accepts `price`
+        // as the dollar amount to spend. The API converts it to quantity at execution.
         payload.price = String(amountOrQuantity);
       }
     }

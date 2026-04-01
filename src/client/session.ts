@@ -1,10 +1,9 @@
 /** HTTP session wrapper for Robinhood API using native fetch. */
 
-import { API_BASE, NUMMUS_BASE } from "./urls.js";
+import { trustedOrigins } from "./urls.js";
 
 export const DEFAULT_HEADERS: Record<string, string> = {
   Accept: "*/*",
-  "Accept-Encoding": "gzip, deflate, br",
   "Accept-Language": "en-US,en;q=1",
   "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
   "X-Robinhood-API-Version": "1.431.4",
@@ -12,12 +11,6 @@ export const DEFAULT_HEADERS: Record<string, string> = {
 };
 
 const DEFAULT_TIMEOUT_MS = 16_000;
-
-const TRUSTED_ORIGINS = new Set([
-  new URL(API_BASE).origin,
-  new URL(NUMMUS_BASE).origin,
-  new URL("https://robinhood.com").origin,
-]);
 
 /**
  * Follow redirects manually, refusing to send auth headers to untrusted hosts.
@@ -43,7 +36,7 @@ async function safeFetch(
     // Resolve relative redirects
     const resolved = new URL(location, currentUrl).href;
     const target = new URL(resolved);
-    if (!TRUSTED_ORIGINS.has(target.origin)) {
+    if (!trustedOrigins().has(target.origin)) {
       throw new Error(`Refusing redirect to untrusted host: ${target.hostname}`);
     }
     currentUrl = resolved;
@@ -54,35 +47,42 @@ async function safeFetch(
 export class RobinhoodSession {
   private headers: Record<string, string>;
   private timeoutMs: number;
+  private accessToken: string | null = null;
+
+  /**
+   * Called when a 401 is received. Should refresh the token and return
+   * the new access token, or null if refresh failed.
+   */
+  onUnauthorized: (() => Promise<string | null>) | null = null;
 
   constructor(opts?: { timeoutMs?: number }) {
     this.headers = { ...DEFAULT_HEADERS };
     this.timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
 
-  setAuth(token: string): void {
-    this.headers.Authorization = `Bearer ${token}`;
+  /** Set the access token for Bearer auth injection. */
+  setAccessToken(token: string): void {
+    this.accessToken = token;
   }
 
-  clearAuth(): void {
-    delete this.headers.Authorization;
+  /** Clear the access token. */
+  clearAccessToken(): void {
+    this.accessToken = null;
   }
 
-  /**
-   * Returns the raw access token. ONLY for token revocation during logout.
-   * NEVER expose this value in API responses, logs, or error messages.
-   * @internal
-   */
-  getAuthTokenForRevocation(): string | undefined {
-    const auth = this.headers.Authorization;
-    return auth?.replace("Bearer ", "");
+  /** Build headers with Authorization injected if token is set. */
+  private authHeaders(base: Record<string, string>): Record<string, string> {
+    if (this.accessToken) {
+      return { ...base, Authorization: `Bearer ${this.accessToken}` };
+    }
+    return base;
   }
 
   async get(url: string, params?: Record<string, string>): Promise<Response> {
     const target = params ? `${url}?${new URLSearchParams(params)}` : url;
-    return safeFetch(target, {
+    return this.fetchWithRetry(target, {
       method: "GET",
-      headers: this.headers,
+      headers: this.authHeaders(this.headers),
       signal: AbortSignal.timeout(this.timeoutMs),
     });
   }
@@ -93,7 +93,7 @@ export class RobinhoodSession {
     opts?: { asJson?: boolean; timeoutMs?: number },
   ): Promise<Response> {
     const timeout = opts?.timeoutMs ?? this.timeoutMs;
-    const headers = { ...this.headers };
+    const headers = this.authHeaders({ ...this.headers });
 
     let requestBody: string;
     if (opts?.asJson) {
@@ -112,7 +112,7 @@ export class RobinhoodSession {
       ).toString();
     }
 
-    return safeFetch(url, {
+    return this.fetchWithRetry(url, {
       method: "POST",
       headers,
       body: requestBody,
@@ -121,11 +121,38 @@ export class RobinhoodSession {
   }
 
   async delete(url: string): Promise<Response> {
-    return safeFetch(url, {
+    return this.fetchWithRetry(url, {
       method: "DELETE",
-      headers: this.headers,
+      headers: this.authHeaders(this.headers),
       signal: AbortSignal.timeout(this.timeoutMs),
     });
+  }
+
+  /**
+   * Fetch with single-retry on 401. If onUnauthorized is set and the first
+   * request returns 401, refresh the token and retry once.
+   */
+  private async fetchWithRetry(
+    url: string,
+    init: RequestInit & { signal: AbortSignal },
+  ): Promise<Response> {
+    const resp = await safeFetch(url, init);
+
+    if (resp.status === 401 && this.onUnauthorized) {
+      const newToken = await this.onUnauthorized();
+      if (newToken) {
+        this.accessToken = newToken;
+        // Rebuild headers with new token
+        const headers =
+          init.headers instanceof Headers
+            ? Object.fromEntries(init.headers)
+            : { ...(init.headers as Record<string, string>) };
+        headers.Authorization = `Bearer ${newToken}`;
+        return safeFetch(url, { ...init, headers });
+      }
+    }
+
+    return resp;
   }
 }
 

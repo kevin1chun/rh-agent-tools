@@ -1,13 +1,12 @@
 # robinhood-for-agents
 
-AI-native Robinhood trading interface — single npm package with MCP server + TypeScript client.
+AI-native Robinhood trading interface — MCP server + TypeScript client library.
 
 ## Project Structure
 - `src/client/` — Robinhood API client (~50 async methods)
 - `src/server/` — MCP server with 18 tools
 - `bin/` — CLI entry point (`robinhood-for-agents`)
 - `skills/` — Claude Code skills for interactive use
-- `docs/` — Architecture, access controls, use cases, contributing
 
 ## Tech Stack
 - **Runtime**: Bun
@@ -68,8 +67,9 @@ await rh.restoreSession();
 - Browser login (`robinhood_browser_login`) opens a Chromium-based browser via playwright-core. On macOS, Brave and Chrome are auto-detected; otherwise use `BROWSER_PATH` or `robinhood-for-agents login --chrome /path/to/browser`.
 - Purely passive — Playwright intercepts `/oauth2/token` network traffic, never interacts with the DOM
 - Request body (JSON) → captures `device_token`; Response → captures `access_token` + `refresh_token`
-- Tokens stored directly in OS keychain via `Bun.secrets` (never on disk)
-- `restoreSession()` validates cached token, falls back to refresh, then directs to browser login
+- Tokens stored in OS keychain (`KeychainTokenStore`, default) or encrypted file (`EncryptedFileTokenStore`, for Docker/headless)
+- `restoreSession()` loads tokens from the configured `TokenStore`, sets Bearer auth on the session, and registers automatic 401 token refresh
+- **Docker / headless:** Use `EncryptedFileTokenStore` — set `ROBINHOOD_TOKENS_FILE` and `ROBINHOOD_TOKEN_KEY` env vars. The `onboard` command can export encrypted tokens for container use.
 
 ## Safety Rules
 - **NEVER** place bulk cancel operations
@@ -82,4 +82,17 @@ await rh.restoreSession();
 ```bash
 npx vitest run
 ```
-Tests use `vi.mock()` to mock HTTP layer — no real API calls. Use `vitest` (not `bun test`) for correct module isolation.
+Tests use mocking (vi.mock) for HTTP layer — no real API calls.
+
+### Integration Tests (local only, requires login)
+```bash
+# Login first (one-time)
+robinhood-for-agents onboard
+
+# Run integration tests
+bun run test:integration
+```
+Integration tests hit the real Robinhood API (read-only). They are excluded from CI and default test runs.
+
+## Releases
+Tag `v*` → publishes to npm

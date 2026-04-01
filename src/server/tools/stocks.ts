@@ -11,6 +11,7 @@ export function registerStockTools(server: McpServer): void {
     {
       symbols: z
         .string()
+        .max(200)
         .describe('Comma-separated ticker symbols (e.g. "AAPL" or "AAPL,MSFT,GOOGL").'),
     },
     async ({ symbols }) => {

@@ -9,7 +9,7 @@ install:
     bins: [robinhood-for-agents]
 requires:
   bins: [bun, google-chrome]
-metadata: {"credentials":"OAuth tokens stored in OS keychain via Bun.secrets (macOS Keychain Services, Linux libsecret, Windows Credential Manager). No tokens on disk. Browser login captures tokens via Playwright intercepting network traffic — no DOM interaction. Tokens expire ~24h.","chrome":"Required only for initial login (bunx robinhood-for-agents login). Not needed for subsequent API calls."}
+metadata: {"credentials":"OAuth tokens stored via TokenStore adapters: KeychainTokenStore (OS keychain, default) or EncryptedFileTokenStore (for Docker/headless). restoreSession() loads tokens and injects Bearer auth directly. Tokens expire ~24h with auto-refresh on 401.","chrome":"Required only for initial login (bunx robinhood-for-agents onboard). Not needed for subsequent API calls."}
 ---
 
 # robinhood-for-agents
@@ -88,7 +88,7 @@ If it throws, follow [setup.md](setup.md) to authenticate.
 | `getOptionMarketData(symbol, exp, strike, type)` | Options | Greeks and pricing |
 | `getIndexValue(symbol)` | Options | Current index value (SPX, NDX, etc.) |
 | `getMovers()` | Markets | Top market movers |
-| `orderStock(symbol, qty, side, opts?)` | Trading | Place stock order |
+| `orderStock(symbol, side, qty, opts?)` | Trading | Place stock order |
 | `orderOption(symbol, legs, price, qty, dir, opts?)` | Trading | Place option order |
 | `orderCrypto(symbol, side, amount, opts?)` | Trading | Place crypto order |
 | `getAllStockOrders()` / `getOpenStockOrders()` | Trading | View stock orders |

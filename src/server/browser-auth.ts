@@ -1,76 +1,33 @@
 /**
  * Browser-based Robinhood authentication using Playwright.
  *
- * Opens a Chromium-based browser (Chrome, Brave, or custom path) to
- * robinhood.com/login. The user logs in normally (including MFA via push,
- * SMS, etc.). Playwright intercepts the OAuth token response and stores
- * it via the encrypted token store.
+ * Opens system Chrome to robinhood.com/login. The user logs in normally
+ * (including MFA via push, SMS, etc.). Playwright intercepts the OAuth
+ * token response and stores it via the encrypted token store.
  */
 
-import { existsSync } from "node:fs";
 import type { Browser } from "playwright-core";
 import { chromium, type Request, type Response } from "playwright-core";
 import { getClient } from "../client/index.js";
 import { saveTokens } from "../client/token-store.js";
-import { getAccountHint } from "./tools/_helpers.js";
 
 const LOGIN_URL = "https://robinhood.com/login";
 const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
-
-/** Paths to common Chromium-based browsers on macOS (Brave first, then Chrome). */
-const MACOS_BROWSER_PATHS = [
-  "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  "/Applications/Chromium.app/Contents/MacOS/Chromium",
-] as const;
-
-export interface BrowserLoginOptions {
-  /** Path to browser executable (e.g. Brave or Chrome). If not set, uses BROWSER_PATH env or auto-detects on macOS. */
-  executablePath?: string;
-}
 
 export interface BrowserLoginResult {
   status: "logged_in";
   account_hint: string;
 }
 
-/** Format a login success message for CLI/TUI display. */
-export function formatLoginSuccessMessage(result: BrowserLoginResult): string {
-  return `Logged in${result.account_hint ? ` (account ${result.account_hint})` : ""}.`;
-}
-
-/**
- * Resolve browser executable: env BROWSER_PATH, then on macOS check Brave/Chrome/Chromium, else undefined (use channel).
- */
-export function resolveBrowserExecutable(): string | undefined {
-  const fromEnv = process.env.BROWSER_PATH?.trim();
-  if (fromEnv && existsSync(fromEnv)) return fromEnv;
-
-  if (process.platform === "darwin") {
-    for (const p of MACOS_BROWSER_PATHS) {
-      if (existsSync(p)) return p;
-    }
-  }
-
-  return undefined;
-}
-
-export async function browserLogin(options?: BrowserLoginOptions): Promise<BrowserLoginResult> {
-  const executablePath = options?.executablePath?.trim() || resolveBrowserExecutable();
-
-  const launchOptions = {
-    headless: false,
-    ...(executablePath ? { executablePath } : { channel: "chrome" as const }),
-  };
-
+export async function browserLogin(): Promise<BrowserLoginResult> {
   let browser: Browser;
   try {
-    browser = await chromium.launch(launchOptions);
+    browser = await chromium.launch({
+      channel: "chrome",
+      headless: false,
+    });
   } catch {
-    const hint = executablePath
-      ? ` (${executablePath})`
-      : ". Set BROWSER_PATH or use --chrome /path/to/browser, or install Google Chrome";
-    throw new Error(`Browser not found${hint}.`);
+    throw new Error("Chrome not found. Install Google Chrome to use browser-based login.");
   }
 
   const context = await browser.newContext();
@@ -160,7 +117,16 @@ export async function browserLogin(options?: BrowserLoginOptions): Promise<Brows
     const rh = getClient();
     await rh.restoreSession();
 
-    const accountHint = await getAccountHint(rh);
+    // Get account hint
+    let accountHint = "";
+    try {
+      const profile = await rh.getAccountProfile();
+      const acct = profile.account_number ?? "";
+      accountHint = acct.length >= 4 ? `...${acct.slice(-4)}` : acct;
+    } catch {
+      // Skip
+    }
+
     return { status: "logged_in", account_hint: accountHint };
   } finally {
     await browser.close().catch(() => {});

@@ -1,147 +1,126 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import type { AuthState } from "../../src/client/auth.js";
+import { logout, restoreSession, restoreSessionFromToken } from "../../src/client/auth.js";
 import { AuthenticationError } from "../../src/client/errors.js";
-
-// Mock token-store
-vi.mock("../../src/client/token-store.js", () => ({
-  loadTokens: vi.fn().mockResolvedValue(null),
-  saveTokens: vi.fn().mockResolvedValue("keychain"),
-  deleteTokens: vi.fn().mockResolvedValue(undefined),
-}));
-
-import type { Mock } from "vitest";
-import { logout, restoreSession } from "../../src/client/auth.js";
 import type { RobinhoodSession } from "../../src/client/session.js";
-import { deleteTokens, loadTokens, saveTokens } from "../../src/client/token-store.js";
+import type { TokenData, TokenStore } from "../../src/client/token-store.js";
 
-const mockLoadTokens = loadTokens as Mock;
-const mockSaveTokens = saveTokens as Mock;
+const sampleTokens: TokenData = {
+  access_token: "tok123",
+  refresh_token: "ref456",
+  token_type: "Bearer",
+  device_token: "dev789",
+  saved_at: Date.now() / 1000,
+};
 
 function mockSession(): RobinhoodSession {
   return {
     get: vi.fn(),
     post: vi.fn(),
     delete: vi.fn(),
-    setAuth: vi.fn(),
-    clearAuth: vi.fn(),
-    getAuthTokenForRevocation: vi.fn(),
+    setAccessToken: vi.fn(),
+    clearAccessToken: vi.fn(),
+    onUnauthorized: null,
   } as unknown as RobinhoodSession;
 }
 
-function jsonResponse(body: unknown, status = 200): Response {
+function mockStore(tokens: TokenData | null = sampleTokens): TokenStore {
   return {
-    ok: status >= 200 && status < 300,
-    status,
-    json: () => Promise.resolve(body),
-  } as Response;
+    load: vi.fn().mockResolvedValue(tokens),
+    save: vi.fn().mockResolvedValue(undefined),
+    delete: vi.fn().mockResolvedValue(undefined),
+  };
 }
 
-describe("restoreSession", () => {
+describe("restoreSession (token store)", () => {
   let session: RobinhoodSession;
 
   beforeEach(() => {
     vi.clearAllMocks();
     session = mockSession();
-    mockLoadTokens.mockResolvedValue(null);
   });
 
-  it("uses cached token when valid", async () => {
-    mockLoadTokens.mockResolvedValue({
-      access_token: "cached-tok",
-      refresh_token: "cached-ref",
-      device_token: "cached-dev",
-    });
-    // validateToken: positions call succeeds
-    (session.get as Mock).mockResolvedValueOnce(jsonResponse([], 200));
-
-    const result = await restoreSession(session);
-
-    expect(result.method).toBe("cached");
-    expect(session.setAuth).toHaveBeenCalledWith("cached-tok");
+  it("loads tokens from store and sets access token", async () => {
+    const store = mockStore();
+    const { result } = await restoreSession(session, store);
+    expect(result.status).toBe("logged_in");
+    expect(result.method).toBe("keychain");
+    expect(store.load).toHaveBeenCalled();
+    expect(session.setAccessToken).toHaveBeenCalledWith("tok123");
   });
 
-  it("refreshes token when cached token is invalid", async () => {
-    mockLoadTokens.mockResolvedValue({
-      access_token: "expired-tok",
-      refresh_token: "ref-tok",
-      device_token: "dev",
-    });
-    // validateToken fails
-    (session.get as Mock).mockResolvedValueOnce(jsonResponse({}, 401));
-    // Refresh succeeds
-    (session.post as Mock).mockResolvedValueOnce(
-      jsonResponse({
-        access_token: "new-tok",
-        refresh_token: "new-ref",
-        token_type: "Bearer",
-      }),
-    );
-
-    const result = await restoreSession(session);
-
-    expect(result.method).toBe("refreshed");
-    expect(session.clearAuth).toHaveBeenCalled();
-    expect(session.setAuth).toHaveBeenCalledWith("new-tok");
-    expect(mockSaveTokens).toHaveBeenCalledWith(
-      expect.objectContaining({ access_token: "new-tok" }),
-    );
+  it("throws AuthenticationError when no tokens found", async () => {
+    const store = mockStore(null);
+    await expect(restoreSession(session, store)).rejects.toThrow(AuthenticationError);
   });
 
-  it("throws AuthenticationError when no cached session", async () => {
-    mockLoadTokens.mockResolvedValue(null);
-
-    await expect(restoreSession(session)).rejects.toThrow(AuthenticationError);
-    await expect(restoreSession(session)).rejects.toThrow("robinhood_browser_login");
+  it("registers onUnauthorized callback", async () => {
+    const store = mockStore();
+    await restoreSession(session, store);
+    expect(session.onUnauthorized).toBeTypeOf("function");
   });
+});
 
-  it("throws AuthenticationError when token invalid and refresh fails", async () => {
-    mockLoadTokens.mockResolvedValue({
-      access_token: "expired-tok",
-      refresh_token: "ref-tok",
-      device_token: "dev",
-    });
-    // validateToken fails
-    (session.get as Mock).mockResolvedValueOnce(jsonResponse({}, 401));
-    // Refresh fails
-    (session.post as Mock).mockResolvedValueOnce(jsonResponse({}, 401));
-
-    await expect(restoreSession(session)).rejects.toThrow(AuthenticationError);
-    await expect(restoreSession(session)).rejects.toThrow("robinhood_browser_login");
-  });
-
-  it("throws AuthenticationError when token invalid and no refresh token", async () => {
-    mockLoadTokens.mockResolvedValue({
-      access_token: "expired-tok",
-      refresh_token: "",
-      device_token: "dev",
-    });
-    // validateToken fails
-    (session.get as Mock).mockResolvedValueOnce(jsonResponse({}, 401));
-
-    await expect(restoreSession(session)).rejects.toThrow(AuthenticationError);
+describe("restoreSessionFromToken", () => {
+  it("sets access token directly", () => {
+    const session = mockSession();
+    const result = restoreSessionFromToken(session, "direct-token");
+    expect(result.status).toBe("logged_in");
+    expect(result.method).toBe("token");
+    expect(session.setAccessToken).toHaveBeenCalledWith("direct-token");
   });
 });
 
 describe("logout", () => {
-  it("revokes token and clears session", async () => {
-    const session = mockSession();
-    (session.getAuthTokenForRevocation as Mock).mockReturnValue("tok123");
-    (session.post as Mock).mockResolvedValueOnce(jsonResponse({}));
+  // Mock global fetch for token revocation
+  const originalFetch = globalThis.fetch;
 
-    await logout(session);
-
-    expect(session.post).toHaveBeenCalled();
-    expect(session.clearAuth).toHaveBeenCalled();
-    expect(deleteTokens).toHaveBeenCalled();
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // biome-ignore lint/suspicious/noExplicitAny: test mock
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response("{}")) as any;
   });
 
-  it("clears session even if revoke fails", async () => {
+  afterAll(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("clears access token and onUnauthorized", async () => {
     const session = mockSession();
-    (session.getAuthTokenForRevocation as Mock).mockReturnValue("tok123");
-    (session.post as Mock).mockRejectedValueOnce(new Error("network error"));
+    const store = mockStore();
+    const state: AuthState = { tokens: sampleTokens, store, refreshing: null, lastRefreshAt: 0 };
 
-    await logout(session);
+    await logout(session, state);
 
-    expect(session.clearAuth).toHaveBeenCalled();
-    expect(deleteTokens).toHaveBeenCalled();
+    expect(session.clearAccessToken).toHaveBeenCalled();
+    expect(session.onUnauthorized).toBeNull();
+  });
+
+  it("attempts to revoke token at Robinhood", async () => {
+    const session = mockSession();
+    const store = mockStore();
+    const state: AuthState = { tokens: sampleTokens, store, refreshing: null, lastRefreshAt: 0 };
+
+    await logout(session, state);
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "https://api.robinhood.com/oauth2/revoke_token/",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("deletes from store", async () => {
+    const session = mockSession();
+    const store = mockStore();
+    const state: AuthState = { tokens: sampleTokens, store, refreshing: null, lastRefreshAt: 0 };
+
+    await logout(session, state);
+
+    expect(store.delete).toHaveBeenCalled();
+  });
+
+  it("does not throw when state is null", async () => {
+    const session = mockSession();
+    await expect(logout(session, null)).resolves.toBeUndefined();
   });
 });

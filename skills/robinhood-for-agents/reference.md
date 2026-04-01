@@ -10,7 +10,7 @@ Check if a Robinhood session is active.
 **Response:** `{ "status": "logged_in" | "not_authenticated" }`
 
 ### robinhood_browser_login
-Open a Chromium-based browser (Brave/Chrome auto-detected on macOS, or `BROWSER_PATH`) for browser-based Robinhood login. Captures OAuth tokens automatically.
+Open Chrome for browser-based Robinhood login. Captures OAuth tokens automatically.
 
 **Parameters:** none
 
@@ -162,20 +162,20 @@ Get options chain with greeks for a stock or index symbol.
 - `symbol` (string, required), `side` ("buy"/"sell"), `quantity` (number, supports fractional)
 - `limit_price` (number, optional), `stop_price` (number, optional)
 - `trail_amount` (number, optional), `trail_type` ("percentage"/"amount", default: "percentage")
-- `account_number` (string, required), `time_in_force` ("gtc"/"gfd", default: "gtc"), `extended_hours` (boolean)
+- `account_number` (string, required), `time_in_force` ("gtc"/"gfd", **required**), `extended_hours` (boolean)
 
 ### robinhood_place_option_order
 **Parameters:**
 - `symbol` (string, required), `legs` (array of `{ expiration_date, strike, option_type, side, position_effect, ratio_quantity }`)
 - `price` (number, required), `quantity` (number), `direction` ("debit"/"credit")
-- `stop_price` (number, optional), `time_in_force` ("gtc"/"gfd"/"ioc"/"opg", default: "gfd")
+- `stop_price` (number, optional), `time_in_force` ("gtc"/"gfd"/"ioc"/"opg", **required**)
 - `account_number` (string, required)
 
 ### robinhood_place_crypto_order
 **Parameters:**
 - `symbol` (string, required), `side` ("buy"/"sell")
 - `amount_or_quantity` (number), `amount_in` ("quantity"/"price", default: "quantity")
-- `order_type` ("market"/"limit", default: "market"), `limit_price` (number, optional)
+- `order_type` ("market"/"limit", **required**), `limit_price` (number, optional)
 
 ### robinhood_get_orders
 **Parameters:**

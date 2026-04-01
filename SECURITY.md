@@ -10,7 +10,7 @@
 
 **Do not open a public issue for security vulnerabilities.**
 
-Email security reports to **kevin@taji.finance** with:
+Report security vulnerabilities via [GitHub Security Advisories](https://github.com/kevin1chun/robinhood-for-agents/security/advisories/new) with:
 
 - Description of the vulnerability
 - Steps to reproduce
@@ -23,7 +23,7 @@ You will receive an acknowledgment within 48 hours and a detailed response withi
 
 **In scope:**
 - Token or credential leakage
-- Encryption weaknesses in session storage (`~/.robinhood-for-agents/session.enc`)
+- Encryption weaknesses in token storage (`~/.robinhood-for-agents/tokens.enc`)
 - Unauthorized order execution or account access
 - Bypassing safety controls (blocked operations, parameter validation)
 

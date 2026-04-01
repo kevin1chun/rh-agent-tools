@@ -4,14 +4,12 @@ import { z } from "zod";
 import { redactTokens, scrubSensitiveKeys } from "../redact.js";
 import { APIError, NotFoundError, RateLimitError } from "./errors.js";
 import type { RobinhoodSession } from "./session.js";
-import { API_BASE, NUMMUS_BASE } from "./urls.js";
-
-const TRUSTED_ORIGINS = new Set([new URL(API_BASE).origin, new URL(NUMMUS_BASE).origin]);
+import { trustedOrigins } from "./urls.js";
 
 /** Reject URLs that point outside trusted Robinhood domains. */
 function assertTrustedUrl(url: string): void {
   const parsed = new URL(url);
-  if (!TRUSTED_ORIGINS.has(parsed.origin)) {
+  if (!trustedOrigins().has(parsed.origin)) {
     throw new APIError(`Refusing to follow URL to untrusted host: ${parsed.hostname}`);
   }
 }

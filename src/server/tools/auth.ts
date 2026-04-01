@@ -2,12 +2,12 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { browserLogin } from "../browser-auth.js";
-import { getAccountHint, getRh, text, textError } from "./_helpers.js";
+import { getRh, text, textError } from "./_helpers.js";
 
 export function registerAuthTools(server: McpServer): void {
   server.tool(
     "robinhood_browser_login",
-    "Authenticate with Robinhood by opening a Chromium-based browser (Brave/Chrome auto-detected on macOS, or BROWSER_PATH) to the real login page. The user logs in normally (including MFA). This is the only way to authenticate — no credentials are passed through the tool.",
+    "Authenticate with Robinhood by opening Chrome to the real login page. The user logs in normally (including MFA). This is the only way to authenticate — no credentials are passed through the tool.",
     {},
     async () => {
       try {
@@ -29,7 +29,14 @@ export function registerAuthTools(server: McpServer): void {
         const rh = getRh();
         try {
           const result = await rh.restoreSession();
-          const accountHint = await getAccountHint(rh);
+          let accountHint = "";
+          try {
+            const profile = await rh.getAccountProfile();
+            const acct = profile.account_number ?? "";
+            accountHint = acct.length >= 4 ? `...${acct.slice(-4)}` : acct;
+          } catch {
+            // Skip
+          }
           return text({
             status: "logged_in",
             method: result.method,

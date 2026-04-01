@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { resolve } from "node:path";
 import * as p from "@clack/prompts";
 import { loadTokens } from "../../client/token-store.js";
@@ -7,6 +8,7 @@ import { openclaw } from "./agents/openclaw.js";
 import type { AgentId, AgentMeta } from "./agents/types.js";
 import { AGENTS } from "./agents/types.js";
 import { isCliAvailable } from "./detect.js";
+import { installWorkspaceDep } from "./install-workspace-dep.js";
 
 const agentMap: Record<AgentId, AgentMeta> = {
   "claude-code": claudeCode,
@@ -114,6 +116,20 @@ export async function onboard(preselectedAgent?: AgentId): Promise<void> {
     }
   }
 
+  // --- Install workspace dependency ---
+  if (agent.workspaceDir) {
+    const depSpinner = p.spinner();
+    depSpinner.start("Installing robinhood-for-agents in workspace...");
+    try {
+      installWorkspaceDep(agent.workspaceDir);
+      depSpinner.stop("robinhood-for-agents installed in workspace.");
+    } catch (err) {
+      depSpinner.stop("Workspace dependency install failed.");
+      p.log.error(err instanceof Error ? err.message : "Unknown error during dependency install");
+      // Non-fatal — continue
+    }
+  }
+
   // --- Login ---
   let skipLogin = false;
 
@@ -137,8 +153,7 @@ export async function onboard(preselectedAgent?: AgentId): Promise<void> {
 
   if (!skipLogin) {
     const wantLogin = await p.confirm({
-      message:
-        "Log in to Robinhood? A browser (Brave/Chrome or BROWSER_PATH) will open to robinhood.com/login",
+      message: "Log in to Robinhood? Chrome will open to robinhood.com/login",
       initialValue: true,
     });
 
@@ -146,9 +161,11 @@ export async function onboard(preselectedAgent?: AgentId): Promise<void> {
       const loginSpinner = p.spinner();
       loginSpinner.start("Waiting for login...");
       try {
-        const { browserLogin, formatLoginSuccessMessage } = await import("../browser-auth.js");
+        const { browserLogin } = await import("../browser-auth.js");
         const result = await browserLogin();
-        loginSpinner.stop(formatLoginSuccessMessage(result));
+        loginSpinner.stop(
+          `Logged in${result.account_hint ? ` (account ${result.account_hint})` : ""}.`,
+        );
       } catch (err) {
         loginSpinner.stop("Login failed.");
         p.log.error(err instanceof Error ? err.message : "Unknown error during login");
@@ -156,6 +173,125 @@ export async function onboard(preselectedAgent?: AgentId): Promise<void> {
     }
   }
 
+  // --- Deployment mode ---
+  let tokensAvailable = false;
+  try {
+    tokensAvailable = !!(await loadTokens());
+  } catch {
+    // Keychain unavailable
+  }
+
+  if (tokensAvailable) {
+    const deployment = await p.select({
+      message: "Where is your agent running?",
+      options: [
+        {
+          value: "local" as const,
+          label: "This machine (local)",
+          hint: "tokens in OS keychain — ready to go",
+        },
+        {
+          value: "docker" as const,
+          label: "Docker container / remote host",
+          hint: "exports encrypted tokens",
+        },
+      ],
+    });
+
+    if (p.isCancel(deployment)) {
+      p.cancel("Setup cancelled.");
+      process.exit(0);
+    }
+
+    if (deployment === "docker") {
+      await exportEncryptedTokens();
+    } else {
+      p.log.success("Tokens are stored in the OS keychain. Ready to use.");
+    }
+  }
+
   // --- Done ---
   p.outro(`Done! ${agent.postInstallHint}`);
+}
+
+// ---------------------------------------------------------------------------
+// Deployment helpers
+// ---------------------------------------------------------------------------
+
+/** Copy text to the OS clipboard. Throws if clipboard is unavailable. */
+function copyToClipboard(text: string): void {
+  const platform = process.platform;
+  if (platform === "darwin") {
+    execSync("pbcopy", { input: text, stdio: ["pipe", "pipe", "pipe"] });
+  } else if (platform === "linux") {
+    try {
+      execSync("xclip -selection clipboard", { input: text, stdio: ["pipe", "pipe", "pipe"] });
+    } catch {
+      execSync("xsel --clipboard --input", { input: text, stdio: ["pipe", "pipe", "pipe"] });
+    }
+  } else {
+    throw new Error(`Clipboard not supported on platform: ${platform}`);
+  }
+}
+
+async function exportEncryptedTokens(): Promise<void> {
+  const { EncryptedFileTokenStore, KeychainTokenStore } = await import(
+    "../../client/token-store.js"
+  );
+
+  const spinner = p.spinner();
+  spinner.start("Encrypting tokens...");
+
+  const keychain = new KeychainTokenStore();
+  const tokens = await keychain.load();
+  if (!tokens) {
+    spinner.stop("No tokens found in keychain.");
+    return;
+  }
+
+  const outputPath = "./tokens.enc";
+  const store = new EncryptedFileTokenStore(outputPath);
+  await store.save(tokens);
+
+  // Read back the encryption key
+  let encKey = process.env.ROBINHOOD_TOKEN_KEY?.trim() ?? "";
+  if (!encKey) {
+    try {
+      encKey = (await Bun.secrets.get("robinhood-for-agents", "encryption-key")) ?? "";
+    } catch {
+      // Keychain unavailable
+    }
+  }
+
+  if (!encKey) {
+    spinner.stop("Error: Could not retrieve encryption key.");
+    process.exit(1);
+  }
+
+  // Copy key to clipboard instead of printing it
+  try {
+    copyToClipboard(encKey);
+  } catch {
+    spinner.stop("Error: Cannot copy encryption key to clipboard.");
+    p.log.error("Install pbcopy (macOS) or xclip/xsel (Linux) and retry.");
+    process.exit(1);
+  }
+
+  spinner.stop(`Tokens encrypted to ${outputPath}`);
+
+  p.log.success("Encryption key copied to clipboard. Paste it into your Docker config.");
+
+  p.log.step("Set these env vars in your container:");
+  p.log.message(
+    "  ROBINHOOD_TOKENS_FILE=/app/tokens.enc\n  ROBINHOOD_TOKEN_KEY=<paste from clipboard>",
+  );
+
+  p.log.step("docker-compose.yml example:");
+  p.log.message(
+    '  services:\n    agent:\n      volumes:\n        - ./tokens.enc:/app/tokens.enc:rw\n      environment:\n        ROBINHOOD_TOKENS_FILE: "/app/tokens.enc"\n        ROBINHOOD_TOKEN_KEY: "<paste from clipboard>"',
+  );
+
+  p.log.warn(
+    "Security: Only run agents you trust. A rogue agent with shell access can read the\nenv var and decrypt the tokens. See docs/SECURITY.md for details.",
+  );
 }

@@ -47,7 +47,7 @@ bun -e '
 import { getClient } from "robinhood-for-agents";
 const rh = getClient();
 await rh.restoreSession();
-const order = await rh.orderStock("AAPL", 10, "buy", { limitPrice: 150.0, accountNumber: "ACCT" });
+const order = await rh.orderStock("AAPL", "buy", 10, { limitPrice: 150.0, timeInForce: "gfd", accountNumber: "ACCT" });
 console.log(JSON.stringify(order, null, 2));
 '
 ```

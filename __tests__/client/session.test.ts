@@ -12,15 +12,4 @@ describe("RobinhoodSession", () => {
     expect(DEFAULT_HEADERS["User-Agent"]).toBe("robinhood-for-agents/0.1.0");
     expect(DEFAULT_HEADERS.Accept).toBe("*/*");
   });
-
-  it("setAuth and clearAuth manage authorization", () => {
-    const session = createSession();
-    expect(session.getAuthTokenForRevocation()).toBeUndefined();
-
-    session.setAuth("test-token");
-    expect(session.getAuthTokenForRevocation()).toBe("test-token");
-
-    session.clearAuth();
-    expect(session.getAuthTokenForRevocation()).toBeUndefined();
-  });
 });

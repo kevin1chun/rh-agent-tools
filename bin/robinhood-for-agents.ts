@@ -3,17 +3,6 @@ export {};
 
 const args = process.argv.slice(2);
 
-/** Parse --chrome / --browser path from argv (supports --chrome <path> or --chrome=<path>). */
-function parseBrowserPath(argv: string[]): string | undefined {
-  const idx = argv.findIndex((a) => a === "--chrome" || a === "--browser");
-  if (idx === -1) return undefined;
-  const flag = argv[idx];
-  const next = argv[idx + 1];
-  if (flag?.includes("=")) return flag.split("=", 2)[1]?.trim();
-  if (next && !next.startsWith("--")) return next;
-  return undefined;
-}
-
 if (args[0] === "onboard" || args[0] === "setup") {
   const { onboard } = await import("../src/server/cli/onboard.js");
   const agentFlag = args.find((a) => a.startsWith("--agent=") || a.startsWith("--agent "));
@@ -38,6 +27,16 @@ if (args[0] === "onboard" || args[0] === "setup") {
   const mcpOnly = args.includes("--mcp");
   const both = !skillsOnly && !mcpOnly;
 
+  // Parse --agent flag for workspace dep install
+  let agentId: string | undefined;
+  const agentIdx = args.indexOf("--agent");
+  if (agentIdx !== -1 && args[agentIdx + 1]) {
+    agentId = args[agentIdx + 1];
+  } else {
+    const agentFlag = args.find((a) => a.startsWith("--agent="));
+    if (agentFlag) agentId = agentFlag.split("=")[1];
+  }
+
   console.log("robinhood-for-agents install\n");
 
   if (both || mcpOnly) {
@@ -50,31 +49,35 @@ if (args[0] === "onboard" || args[0] === "setup") {
     installSkills(process.cwd());
   }
 
-  if (both) {
-    console.log("\nRestart Claude Code to pick up the changes.");
+  // Install workspace dependency for agents that need it
+  if (agentId) {
+    const { claudeCode } = await import("../src/server/cli/agents/claude-code.js");
+    const { openclaw } = await import("../src/server/cli/agents/openclaw.js");
+    const { codex } = await import("../src/server/cli/agents/codex.js");
+    const agents = { "claude-code": claudeCode, openclaw, codex } as const;
+    const agent = agents[agentId as keyof typeof agents];
+    if (agent?.workspaceDir) {
+      const { installWorkspaceDep } = await import("../src/server/cli/install-workspace-dep.js");
+      console.log("Installing workspace dependency...");
+      installWorkspaceDep(agent.workspaceDir);
+      console.log("robinhood-for-agents installed in workspace.");
+    }
   }
-} else if (args[0] === "login") {
-  const executablePath = parseBrowserPath(args);
-  const { browserLogin, formatLoginSuccessMessage } = await import("../src/server/browser-auth.js");
-  try {
-    const result = await browserLogin(executablePath ? { executablePath } : undefined);
-    console.log(formatLoginSuccessMessage(result));
-  } catch (err) {
-    console.error(err instanceof Error ? err.message : "Login failed.");
-    process.exit(1);
+
+  if (both && !agentId) {
+    console.log("\nRestart Claude Code to pick up the changes.");
   }
 } else if (args.includes("--help") || args.includes("-h")) {
   console.log(`robinhood-for-agents — AI-native Robinhood trading interface
 
 Usage:
   robinhood-for-agents                  Start the MCP server (stdio transport)
-  robinhood-for-agents login            Browser login (auto-detects Brave/Chrome on macOS)
-  robinhood-for-agents login --chrome <path>   Use specific browser (e.g. Brave)
   robinhood-for-agents onboard          Interactive setup TUI (all agents)
   robinhood-for-agents onboard --agent claude-code|openclaw|codex
   robinhood-for-agents install          Install MCP server config + skills (Claude Code)
   robinhood-for-agents install --mcp    Install MCP server config only
   robinhood-for-agents install --skills Install Claude Code skills only
+  robinhood-for-agents install --agent openclaw  Install for a specific agent
   robinhood-for-agents --help           Show this help message`);
 } else {
   const { main } = await import("../src/server/index.js");

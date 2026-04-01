@@ -147,7 +147,11 @@ describe("Tool handlers return MCP content format", () => {
 
     const accountsData = await callTool(tools, "robinhood_get_accounts");
     expect(accountsData.accounts).toEqual([
-      { url: "https://api.robinhood.com/accounts/ABC123/", account_number: "ABC123", type: "cash" },
+      {
+        url: "https://api.robinhood.com/accounts/ABC123/",
+        account_number: "[REDACTED]",
+        type: "cash",
+      },
     ]);
 
     const accountData = await callTool(tools, "robinhood_get_account", { info_type: "user" });

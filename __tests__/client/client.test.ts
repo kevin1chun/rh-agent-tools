@@ -351,7 +351,7 @@ describe("RobinhoodClient", () => {
       // POST order
       mockRequestPost.mockResolvedValueOnce({ id: "order1", state: "queued" });
 
-      await client.orderStock("AAPL", "buy", 1);
+      await client.orderStock("AAPL", "buy", 1, { timeInForce: "gfd" });
 
       expect(mockRequestPost).toHaveBeenCalledWith(
         expect.anything(),
@@ -359,6 +359,7 @@ describe("RobinhoodClient", () => {
         expect.objectContaining({
           payload: expect.objectContaining({
             account: "https://api.robinhood.com/accounts/123/",
+            order_form_version: 7,
           }),
         }),
       );
@@ -378,7 +379,7 @@ describe("RobinhoodClient", () => {
       // POST order
       mockRequestPost.mockResolvedValueOnce({ id: "order1", state: "queued" });
 
-      await client.orderStock("AAPL", "buy", 1, { accountNumber: "456" });
+      await client.orderStock("AAPL", "buy", 1, { timeInForce: "gfd", accountNumber: "456" });
 
       expect(mockRequestPost).toHaveBeenCalledWith(
         expect.anything(),

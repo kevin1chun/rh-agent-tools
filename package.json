@@ -1,6 +1,6 @@
 {
   "name": "robinhood-for-agents",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "type": "module",
   "description": "AI-native Robinhood trading interface — MCP server + TypeScript client",
   "license": "MIT",
@@ -48,8 +48,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",
     "@types/bun": "latest",
-    "msw": "^2.7.0",
-    "typescript": "^5.8.0",
+    "typescript": "^6.0.2",
     "vitest": "^4.0.18"
   },
   "scripts": {
@@ -57,7 +56,8 @@
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:integration": "bun test __tests__/integration/"
   },
   "overrides": {
     "zod": "^4.3.6"

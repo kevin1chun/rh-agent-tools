@@ -1,12 +1,23 @@
 /**
  * URL builders for Robinhood API endpoints.
- * All functions are pure — no state, no side effects.
+ *
+ * API_BASE and NUMMUS_BASE are constants — the client talks directly
+ * to Robinhood with Bearer auth injected by the session layer.
  */
 
 export const API_BASE = "https://api.robinhood.com";
 export const NUMMUS_BASE = "https://nummus.robinhood.com";
 
-const SAFE_PATH_SEGMENT = /^[a-zA-Z0-9_.:@-]+$/;
+/** Trusted origins for redirect safety. */
+export function trustedOrigins(): Set<string> {
+  return new Set([
+    new URL(API_BASE).origin,
+    new URL(NUMMUS_BASE).origin,
+    new URL("https://robinhood.com").origin,
+  ]);
+}
+
+const SAFE_PATH_SEGMENT = /^[a-zA-Z0-9_.-]+$/;
 
 /** Reject path segments that could cause path traversal or injection. */
 function safeSegment(value: string, label: string): string {
@@ -31,7 +42,7 @@ export function oauthRevoke(): string {
 }
 
 export function challenge(challengeId: string): string {
-  return `${API_BASE}/challenge/${challengeId}/respond/`;
+  return `${API_BASE}/challenge/${safeSegment(challengeId, "challengeId")}/respond/`;
 }
 
 export function pathfinderUserMachine(): string {
@@ -39,11 +50,11 @@ export function pathfinderUserMachine(): string {
 }
 
 export function pathfinderInquiry(machineId: string): string {
-  return `${API_BASE}/pathfinder/inquiries/${machineId}/user_view/`;
+  return `${API_BASE}/pathfinder/inquiries/${safeSegment(machineId, "machineId")}/user_view/`;
 }
 
 export function pushPromptStatus(challengeId: string): string {
-  return `${API_BASE}/push/${challengeId}/get_prompts_status/`;
+  return `${API_BASE}/push/${safeSegment(challengeId, "challengeId")}/get_prompts_status/`;
 }
 
 // ---------------------------------------------------------------------------
@@ -55,7 +66,7 @@ export function accounts(): string {
 }
 
 export function account(accountNumber: string): string {
-  return `${API_BASE}/accounts/${accountNumber}/`;
+  return `${API_BASE}/accounts/${safeSegment(accountNumber, "accountNumber")}/`;
 }
 
 export function portfolios(): string {
@@ -63,11 +74,11 @@ export function portfolios(): string {
 }
 
 export function portfolio(accountNumber: string): string {
-  return `${API_BASE}/portfolios/${accountNumber}/`;
+  return `${API_BASE}/portfolios/${safeSegment(accountNumber, "accountNumber")}/`;
 }
 
 export function portfolioHistoricals(accountNumber: string): string {
-  return `${API_BASE}/portfolios/historicals/${accountNumber}/`;
+  return `${API_BASE}/portfolios/historicals/${safeSegment(accountNumber, "accountNumber")}/`;
 }
 
 export function user(): string {
@@ -103,7 +114,7 @@ export function quotes(): string {
 }
 
 export function quote(symbol: string): string {
-  return `${API_BASE}/quotes/${symbol.toUpperCase()}/`;
+  return `${API_BASE}/quotes/${safeSegment(symbol.toUpperCase(), "symbol")}/`;
 }
 
 export function instruments(): string {
@@ -111,7 +122,7 @@ export function instruments(): string {
 }
 
 export function instrument(instrumentId: string): string {
-  return `${API_BASE}/instruments/${instrumentId}/`;
+  return `${API_BASE}/instruments/${safeSegment(instrumentId, "instrumentId")}/`;
 }
 
 export function fundamentals(): string {
@@ -119,7 +130,7 @@ export function fundamentals(): string {
 }
 
 export function fundamental(symbol: string): string {
-  return `${API_BASE}/fundamentals/${symbol.toUpperCase()}/`;
+  return `${API_BASE}/fundamentals/${safeSegment(symbol.toUpperCase(), "symbol")}/`;
 }
 
 export function stockHistoricals(): string {
@@ -127,15 +138,15 @@ export function stockHistoricals(): string {
 }
 
 export function stockHistoricalsFor(symbol: string): string {
-  return `${API_BASE}/quotes/historicals/${symbol.toUpperCase()}/`;
+  return `${API_BASE}/quotes/historicals/${safeSegment(symbol.toUpperCase(), "symbol")}/`;
 }
 
 export function news(symbol: string): string {
-  return `${API_BASE}/midlands/news/${symbol.toUpperCase()}/`;
+  return `${API_BASE}/midlands/news/${safeSegment(symbol.toUpperCase(), "symbol")}/`;
 }
 
 export function ratings(instrumentId: string): string {
-  return `${API_BASE}/midlands/ratings/${instrumentId}/`;
+  return `${API_BASE}/midlands/ratings/${safeSegment(instrumentId, "instrumentId")}/`;
 }
 
 export function earnings(): string {
@@ -155,7 +166,7 @@ export function optionChains(): string {
 }
 
 export function optionChain(chainId: string): string {
-  return `${API_BASE}/options/chains/${chainId}/`;
+  return `${API_BASE}/options/chains/${safeSegment(chainId, "chainId")}/`;
 }
 
 export function optionInstruments(): string {
@@ -163,7 +174,7 @@ export function optionInstruments(): string {
 }
 
 export function optionMarketData(optionId: string): string {
-  return `${API_BASE}/marketdata/options/${optionId}/`;
+  return `${API_BASE}/marketdata/options/${safeSegment(optionId, "optionId")}/`;
 }
 
 export function optionOrders(): string {
@@ -171,7 +182,7 @@ export function optionOrders(): string {
 }
 
 export function optionOrder(orderId: string): string {
-  return `${API_BASE}/options/orders/${orderId}/`;
+  return `${API_BASE}/options/orders/${safeSegment(orderId, "orderId")}/`;
 }
 
 export function optionPositions(): string {
@@ -203,11 +214,11 @@ export function cryptoCurrencyPairs(): string {
 }
 
 export function cryptoQuote(pairId: string): string {
-  return `${API_BASE}/marketdata/forex/quotes/${pairId}/`;
+  return `${API_BASE}/marketdata/forex/quotes/${safeSegment(pairId, "pairId")}/`;
 }
 
 export function cryptoHistoricals(pairId: string): string {
-  return `${API_BASE}/marketdata/forex/historicals/${pairId}/`;
+  return `${API_BASE}/marketdata/forex/historicals/${safeSegment(pairId, "pairId")}/`;
 }
 
 export function cryptoHoldings(): string {
@@ -219,7 +230,7 @@ export function cryptoOrders(): string {
 }
 
 export function cryptoOrder(orderId: string): string {
-  return `${NUMMUS_BASE}/orders/${orderId}/`;
+  return `${NUMMUS_BASE}/orders/${safeSegment(orderId, "orderId")}/`;
 }
 
 export function cryptoAccounts(): string {
@@ -235,19 +246,19 @@ export function stockOrders(): string {
 }
 
 export function stockOrder(orderId: string): string {
-  return `${API_BASE}/orders/${orderId}/`;
+  return `${API_BASE}/orders/${safeSegment(orderId, "orderId")}/`;
 }
 
 export function cancelStockOrder(orderId: string): string {
-  return `${API_BASE}/orders/${orderId}/cancel/`;
+  return `${API_BASE}/orders/${safeSegment(orderId, "orderId")}/cancel/`;
 }
 
 export function cancelOptionOrder(orderId: string): string {
-  return `${API_BASE}/options/orders/${orderId}/cancel/`;
+  return `${API_BASE}/options/orders/${safeSegment(orderId, "orderId")}/cancel/`;
 }
 
 export function cancelCryptoOrder(orderId: string): string {
-  return `${NUMMUS_BASE}/orders/${orderId}/cancel/`;
+  return `${NUMMUS_BASE}/orders/${safeSegment(orderId, "orderId")}/cancel/`;
 }
 
 // ---------------------------------------------------------------------------
