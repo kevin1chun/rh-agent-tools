@@ -31,7 +31,7 @@ All methods are `async`. Multi-account is first-class: account-scoped methods ac
 | `robinhood_get_options` (instruments) | `findTradableOptions(symbol, opts?)` |
 | `robinhood_get_options` (greeks) | `getOptionMarketData(symbol, expDate, strike, type)` |
 | `robinhood_get_options` (index value) | `getIndexValue(symbol)` |
-| `robinhood_place_stock_order` | `orderStock(symbol, quantity, side, opts?)` |
+| `robinhood_place_stock_order` | `orderStock(symbol, side, quantity, opts?)` |
 | `robinhood_place_option_order` | `orderOption(symbol, legs, price, quantity, direction, opts?)` |
 | `robinhood_place_crypto_order` | `orderCrypto(symbol, side, amount, opts?)` |
 | `robinhood_get_orders` (stock) | `getAllStockOrders()` / `getOpenStockOrders()` |
@@ -120,12 +120,12 @@ const spx = await rh.getIndexValue("SPX");
 
 **Safety**: Always confirm with the user before calling any order method.
 
-### `orderStock(symbol, quantity, side, opts?)`
+### `orderStock(symbol, side, quantity, opts?)`
 ```typescript
-await rh.orderStock("AAPL", 10, "buy");                          // market
-await rh.orderStock("AAPL", 10, "buy", { limitPrice: 150.0 });   // limit
-await rh.orderStock("AAPL", 10, "sell", { stopPrice: 145.0, limitPrice: 144.0 }); // stop-limit
-await rh.orderStock("AAPL", 10, "sell", { trailAmount: 5, trailType: "percentage" }); // trailing stop
+await rh.orderStock("AAPL", "buy", 10);                          // market
+await rh.orderStock("AAPL", "buy", 10, { limitPrice: 150.0 });   // limit
+await rh.orderStock("AAPL", "sell", 10, { stopPrice: 145.0, limitPrice: 144.0 }); // stop-limit
+await rh.orderStock("AAPL", "sell", 10, { trailAmount: 5, trailType: "percentage" }); // trailing stop
 ```
 Options: `{ limitPrice, stopPrice, trailAmount, trailType, accountNumber, timeInForce, extendedHours }`
 

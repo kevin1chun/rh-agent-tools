@@ -88,7 +88,7 @@ If it throws, follow [setup.md](setup.md) to authenticate.
 | `getOptionMarketData(symbol, exp, strike, type)` | Options | Greeks and pricing |
 | `getIndexValue(symbol)` | Options | Current index value (SPX, NDX, etc.) |
 | `getMovers()` | Markets | Top market movers |
-| `orderStock(symbol, qty, side, opts?)` | Trading | Place stock order |
+| `orderStock(symbol, side, qty, opts?)` | Trading | Place stock order |
 | `orderOption(symbol, legs, price, qty, dir, opts?)` | Trading | Place option order |
 | `orderCrypto(symbol, side, amount, opts?)` | Trading | Place crypto order |
 | `getAllStockOrders()` / `getOpenStockOrders()` | Trading | View stock orders |
